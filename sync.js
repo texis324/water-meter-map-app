@@ -31,7 +31,12 @@
   function autoSyncOn() { return localStorage.getItem('waterMeterAutoSync') !== 'off'; } // 既定ON
   function isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
+  // 読み込んだエリアを記憶し、保存(push)も同じエリアへ書き戻す(名前自動導出のズレ防止)
+  function loadedArea() { return localStorage.getItem('waterMeterCurrentArea') || ''; }
+  function setLoadedArea(a) { if (a) localStorage.setItem('waterMeterCurrentArea', a); else localStorage.removeItem('waterMeterCurrentArea'); }
   function currentArea() {
+    var la = loadedArea();
+    if (la) return la;
     try {
       var a = (typeof detectAreaName === 'function') ? detectAreaName() : '';
       return a || '_default';
@@ -140,6 +145,7 @@
       }
       var d = snap.data();
       applyBlob(JSON.parse(d.blob), d.clientTime || 0);
+      setLoadedArea(area);
       setSyncStatus('synced', area + ' / ' + pins.length + '件');
       if (!opts.silent) toast('⬇️ クラウドから取得: ' + area + ' ' + pins.length + '件');
       return true;
@@ -298,6 +304,11 @@
     setLocalMtime(Date.now());
     scheduleCloudPush();
   };
+  // ローカルJSONを読み込んだら「読み込み中エリア」を解除(以後はラベルから自動判定＝別エリアへの誤上書き防止)
+  if (typeof window.handleImport === 'function') {
+    var _origImport = window.handleImport;
+    window.handleImport = function () { setLoadedArea(''); return _origImport.apply(this, arguments); };
+  }
   if (!enabled) {
     console.warn('[sync] Firebase SDK 未ロード — クラウド同期は無効（ローカルのみ動作）');
     setSyncStatus('out');
