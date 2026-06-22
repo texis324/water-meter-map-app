@@ -327,5 +327,13 @@
     }
   });
 
+  // オフライン復帰時: 未送信のローカル変更を自動で再push（電波弱→復帰での取りこぼし防止）
+  window.addEventListener('online', function () {
+    if (currentUser && pins && pins.length) {
+      console.log('[sync] オンライン復帰 → 再push');
+      scheduleCloudPush();
+    }
+  });
+
   console.log('[sync] 初期化完了 project=' + firebaseConfig.projectId);
 })();

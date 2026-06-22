@@ -59,7 +59,7 @@ function reverseGeocode(lat, lng) {
       // 番号指定で呼び寄せる入力欄（共通）
       const callInput = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ddd;display:flex;gap:4px;align-items:center;">
         <span style="font-size:12px;font-weight:bold;white-space:nowrap;">📢 呼出:</span>
-        <input type="number" id="call-pin-num" min="1" placeholder="#" style="width:55px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:13px;text-align:center;" onkeydown="if(event.key==='Enter'){callPinHere(${lat},${lng});event.preventDefault();}">
+        <input type="number" id="call-pin-num" min="1" placeholder="#" style="width:60px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:16px;text-align:center;" onkeydown="if(event.key==='Enter'){callPinHere(${lat},${lng});event.preventDefault();}">
         <button onclick="callPinHere(${lat},${lng})" style="padding:3px 10px;border:none;border-radius:4px;background:#1976D2;color:white;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;">移動</button>
       </div>`;
 

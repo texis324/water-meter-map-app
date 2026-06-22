@@ -1,5 +1,18 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+html, body { overscroll-behavior: none; }   /* 地図縁/ツールバーでのページのゴムバンドを抑制 */
+
+/* タッチ操作中のテキスト選択・コールアウト暴発を抑止（入力欄は下で除外） */
+#toolbar, #toolbar button, #pin-list-panel, #pin-list-header,
+.modal-buttons button, [id$='-banner'], .pin-icon {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.modal input, .modal textarea, #pin-list-search, .group-label {
+  -webkit-user-select: text;
+  user-select: text;
+}
 body.dark #toolbar { background: #1e1e1e; border-top-color: #444; }
 body.dark #toolbar button { background: #333; color: #ddd; border-color: #555; }
 body.dark #toolbar button.active { background: #2E7D32; border-color: #1B5E20; }
@@ -7,7 +20,7 @@ body.dark #pin-count { color: #ccc; }
 body.dark .modal { background: #2a2a2a; color: #ddd; }
 body.dark .modal input, body.dark .modal textarea { background: #333; color: #ddd; border-color: #555; }
 body.dark .btn-cancel { background: #444; color: #ddd; }
-body.dark #toast { background: #555; }
+body.dark #toast { background: #111; }
 
 #map { width: 100%; height: 100vh; }
 
@@ -343,6 +356,13 @@ body.drag-over::after {
 }
 #stale-snapshot-banner.show { display: block; }
 
+/* 上端固定バナー: ノッチ/Dynamic Island/ステータスバー裏に潜らせない */
+#trace-banner, #trace-edit-banner, #stamp-banner, #reorder-banner,
+#group-banner, #trace-reorder-banner, #concat-banner,
+#lasso-delete-banner, #stale-snapshot-banner {
+  padding-top: calc(8px + env(safe-area-inset-top));
+}
+
 /* ヘルプオーバーレイ */
 .help-section {
   padding: 8px 0;
@@ -468,15 +488,19 @@ body.dark .pin-list-coords { color: #777; }
 #toast {
   display: none;
   position: fixed;
-  top: 20px;
+  top: calc(20px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
-  color: white;
-  padding: 10px 20px;
+  background: #000;
+  color: #fff;
+  padding: 12px 22px;
   border-radius: 8px;
   z-index: 3000;
-  font-size: 14px;
+  font-size: 16px;            /* 屋外・直射日光下の視認性 */
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  max-width: 90vw;
+  text-align: center;
 }
 #toast.show { display: block; }
 
@@ -485,24 +509,42 @@ body.dark .pin-list-coords { color: #777; }
 
 /* === スマホ最適化 (max-width:600px) === */
 @media (max-width: 600px) {
-  /* 100dvh = モバイルのアドレスバー伸縮に追従。ツールバー1行(約50px)分を引く */
-  #map { height: calc(100dvh - 50px); }
+  /* 100dvh = モバイルのアドレスバー伸縮に追従。ツールバー実高+下端safe-area分を引く */
+  #map { height: calc(100dvh - 56px - env(safe-area-inset-bottom)); }
 
   /* ツールバーは折り返さず横1行スクロール → 地図を最大化 */
   #toolbar {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 5px 6px;
-    gap: 4px;
-    /* スクロールバーを細く */
+    /* 下端: iOSホームバー(スワイプ領域)と被らないよう safe-area 分を確保 */
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom)) 6px;
+    gap: 6px;
     scrollbar-width: thin;
+    touch-action: pan-x;       /* 横スクロール優先・縦ジェスチャ誤判定を減らす */
   }
   #toolbar::-webkit-scrollbar { height: 3px; }
   #toolbar::-webkit-scrollbar-thumb { background: #bbb; border-radius: 3px; }
+  /* 右端フェード=「→まだボタンが続く」を示し横スクロールの発見性を上げる */
+  #toolbar::after {
+    content: '';
+    position: fixed;
+    right: 0;
+    bottom: env(safe-area-inset-bottom);
+    width: 22px;
+    height: 50px;
+    pointer-events: none;
+    background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.95));
+    z-index: 1001;
+  }
+  body.dark #toolbar::after {
+    background: linear-gradient(to right, rgba(30,30,30,0), rgba(30,30,30,0.95));
+  }
 
   #toolbar button {
-    padding: 9px 11px;     /* タップしやすさ確保（高さ約38px） */
+    min-height: 44px;      /* Apple HIG 44pt: 片手・歩行中の誤タップ低減 */
+    min-width: 44px;       /* 絵文字単独ボタン(🌙/❓)も押しやすく */
+    padding: 8px 12px;
     font-size: 13px;
     flex: 0 0 auto;        /* 縮まず横スクロール */
   }
@@ -514,13 +556,28 @@ body.dark .pin-list-coords { color: #777; }
     font-size: 12px;
   }
   #reference-count { flex: 0 0 auto; }
-  #pin-size-slider { width: 50px !important; flex: 0 0 auto; }
-  #trace-opacity-slider { width: 44px !important; }
+  #pin-size-slider { width: 64px !important; flex: 0 0 auto; touch-action: none; }
+  #trace-opacity-slider { width: 56px !important; touch-action: none; }
   #toolbar label { flex: 0 0 auto; white-space: nowrap; }
 
   /* モーダルを画面いっぱい寄りに（小画面で操作しやすく） */
-  .modal { width: 94%; max-width: none; }
+  .modal {
+    width: 94%;
+    max-width: none;
+    /* ソフトキーボード/ホームバーで見切れないよう画面内に収めスクロール可に */
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px);
+    overflow-y: auto;
+  }
 
   /* バナー類の文字を少し小さく */
   #trace-banner, #trace-edit-banner, #reorder-banner, #group-banner { font-size: 12px; }
+
+  /* ピン一覧パネル: 画面を覆いすぎず、上下のノッチ/ツールバー/ホームバーに被らない */
+  #pin-list-panel {
+    width: min(320px, 88vw);
+    right: calc(-1 * min(320px, 88vw));
+    height: calc(100dvh - 56px - env(safe-area-inset-bottom));
+    top: env(safe-area-inset-top);
+  }
+  #pin-list-panel.show { right: 0; }
 }

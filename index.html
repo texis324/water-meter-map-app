@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>水道検針ルートマップ</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="style.css" />
@@ -77,7 +77,7 @@
 
 <div id="trace-edit-banner">🔧 ルート編集: ●ドラッグで移動 / 線上タップで追加 / ●タップで削除 <button onclick="finishTraceEdit()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:#4CAF50;color:white;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelTraceEdit()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
 
-<div id="reorder-banner">🔢 <span id="reorder-instruction">開始位置のピンをタップ</span> <span id="reorder-startnum-area">開始: <input type="number" id="reorder-start" value="1" min="1" style="width:50px;padding:2px 4px;border:none;border-radius:4px;font-size:14px;text-align:center;" onchange="reorderAnchorSet=true;updateReorderDisplay()"> 番</span> (<span id="reorder-count">0</span>件済) <button onclick="finishReorder()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#9C27B0;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelReorder()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button> <button onclick="toggleReorderSwapMode()" id="btn-swap-mode" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">入替モード</button></div>
+<div id="reorder-banner">🔢 <span id="reorder-instruction">開始位置のピンをタップ</span> <span id="reorder-startnum-area">開始: <input type="number" id="reorder-start" value="1" min="1" style="width:58px;padding:2px 4px;border:none;border-radius:4px;font-size:16px;text-align:center;" onchange="reorderAnchorSet=true;updateReorderDisplay()"> 番</span> (<span id="reorder-count">0</span>件済) <button onclick="finishReorder()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#9C27B0;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelReorder()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button> <button onclick="toggleReorderSwapMode()" id="btn-swap-mode" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">入替モード</button></div>
 
 
 <div id="group-banner">📦 グループ化するピンをタップ (<span id="group-select-count">0</span>件選択) <button onclick="finishGroupMode()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#5D4037;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelGroupMode()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
@@ -86,7 +86,7 @@
 
 <div id="concat-banner">🔗 連結モード: <span id="concat-status">前半の終点ピンをタップ</span> <button onclick="cancelConcat()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#E91E63;font-weight:bold;cursor:pointer;">終了</button></div>
 
-<div id="stamp-banner">🔖 スタンプモード: 次は <b><span id="stamp-next-num">1</span></b>番 <span id="stamp-next-label" style="font-size:12px;opacity:0.9;"></span> <input type="number" id="stamp-num-input" min="1" value="1" style="width:55px;padding:2px 4px;border:none;border-radius:4px;font-size:14px;text-align:center;margin-left:8px;" onchange="setStampNum(parseInt(this.value))"> <button onclick="finishStampMode()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#1976D2;font-weight:bold;cursor:pointer;">終了</button></div>
+<div id="stamp-banner">🔖 スタンプモード: 次は <b><span id="stamp-next-num">1</span></b>番 <span id="stamp-next-label" style="font-size:12px;opacity:0.9;"></span> <input type="number" id="stamp-num-input" min="1" value="1" style="width:60px;padding:2px 4px;border:none;border-radius:4px;font-size:16px;text-align:center;margin-left:8px;" onchange="setStampNum(parseInt(this.value))"> <button onclick="finishStampMode()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#1976D2;font-weight:bold;cursor:pointer;">終了</button></div>
 
 <div id="stale-snapshot-banner">⚠️ このデータは <b><span id="stale-snapshot-days">?</span>日前</b> のスナップショットです (<span id="stale-snapshot-date">?</span>)。最新の検針データか確認してください。 <button onclick="document.getElementById('stale-snapshot-banner').classList.remove('show')" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">閉じる</button></div>
 

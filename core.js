@@ -492,10 +492,14 @@ function addGroupItem() {
   const group = Array.from(items).map(el => ({ label: el.value }));
   group.push({ label: '' });
   renderGroupItems(group);
-  // 最後の入力欄にフォーカス
+  // 最後の入力欄にフォーカス（モバイルではソフトキーボード裏に隠れないよう中央へスクロール）
   setTimeout(() => {
     const inputs = container.querySelectorAll('.group-label');
-    if (inputs.length) inputs[inputs.length - 1].focus();
+    if (inputs.length) {
+      const last = inputs[inputs.length - 1];
+      last.focus();
+      if (last.scrollIntoView) last.scrollIntoView({ block: 'center' });
+    }
   }, 50);
 }
 
@@ -826,5 +830,26 @@ function syncEndpointsButton() {
   const btn = document.getElementById('btn-endpoints');
   if (btn) btn.classList.toggle('active', highlightEndpoints);
 }
+
+// --- モバイル/PC共通: Escキー & 背景タップでモーダルを閉じる ---
+(function () {
+  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal'];
+  overlayIds.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    // 背景（オーバーレイ自身）タップで閉じる。内側(.modal)クリックは閉じない
+    el.addEventListener('click', function (e) {
+      if (e.target === el) el.classList.remove('show');
+    });
+  });
+  // Escキーで開いているモーダルを閉じる（物理キーボード接続時）
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    overlayIds.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.classList.contains('show')) el.classList.remove('show');
+    });
+  });
+})();
 
 // スタンプモード → stamp.js
