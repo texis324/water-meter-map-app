@@ -224,11 +224,10 @@
     if (!enabled) { toast('同期は利用できません（オフライン）'); return; }
     var provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    if (isMobile()) {
-      auth.signInWithRedirect(provider);
-    } else {
-      auth.signInWithPopup(provider).catch(handleAuthError);
-    }
+    // ポップアップ方式に統一。モバイルの signInWithRedirect は authDomain(別ドメイン
+    // firebaseapp.com)のストレージ制限で戻った後に getRedirectResult が空になる既知問題が
+    // あるため。ポップアップは同一コンテキストで完結するのでモバイルでも確実。
+    auth.signInWithPopup(provider).catch(handleAuthError);
   }
   function handleAuthError(e) {
     console.error('[sync] auth error', e);
@@ -236,7 +235,9 @@
     if (e.code === 'auth/operation-not-allowed') {
       toast('⚠️ Google認証が未有効です（Firebase Console での有効化が必要）');
     } else if (e.code === 'auth/popup-blocked') {
-      auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+      toast('ポップアップがブロックされました。ブラウザのポップアップ許可をONにして再試行してください');
+    } else if (e.code === 'auth/operation-not-supported-in-this-environment') {
+      toast('この画面（アプリ内ブラウザ等）ではログインできません。Chrome/Safari等で開いてください');
     } else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
       toast('ログイン失敗: ' + (e.message || e.code));
     }
