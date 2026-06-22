@@ -26,6 +26,7 @@
   <button onclick="saveData()">💾 保存</button>
   <button onclick="exportData()">📤 書出し</button>
   <button onclick="importData()">📥 読込み</button>
+  <button id="btn-sync" onclick="openSyncModal()" title="スマホ⇔PCでデータ同期（クラウド）">☁️ 同期</button><span id="sync-status" style="font-size:13px;color:#1976D2;vertical-align:middle;"></span>
   <button onclick="importReferenceData()" title="参照ピン（薄表示・スナップ用）を読み込み">📍 参照</button>
   <button id="btn-snap" class="active" onclick="toggleSnap()" title="新規ピン追加・ドラッグ時に近くの参照ピンへ吸着">🧲 スナップON</button>
   <span id="reference-count" style="font-size:11px;color:#666;margin-left:4px;"></span>
@@ -170,8 +171,41 @@
   <div id="pin-list-items"></div>
 </div>
 
+<!-- クラウド同期モーダル -->
+<div class="modal-overlay" id="sync-modal">
+  <div class="modal" style="max-width:430px;">
+    <h3 style="margin-bottom:8px;">☁️ クラウド同期</h3>
+    <div id="sync-login-area">
+      <p style="font-size:13px;color:#666;line-height:1.6;">スマホとPCでピンデータを同期します。<br>Tench のGoogleアカウントでログインしてください。</p>
+      <button class="btn-save" style="width:100%;padding:10px;" onclick="syncSignIn()">🔑 Googleでログイン</button>
+    </div>
+    <div id="sync-user-area" style="display:none;">
+      <p style="font-size:13px;margin-bottom:4px;">✅ <span id="sync-user-email" style="font-weight:bold;"></span></p>
+      <div id="sync-current-area" style="font-size:12px;color:#666;margin:4px 0 10px;"></div>
+      <div style="display:flex;gap:8px;margin:10px 0;">
+        <button class="btn-save" style="flex:1;" onclick="syncPushNow()">⬆️ クラウドへ保存</button>
+        <button class="btn-save" style="flex:1;background:#FF9800;" onclick="syncPullNow()">⬇️ クラウドから取得</button>
+      </div>
+      <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="sync-auto" onchange="syncToggleAuto(this.checked)"> 自動同期（保存のたびに自動でクラウドへ）
+      </label>
+      <div style="border-top:1px solid #ddd;margin-top:12px;padding-top:8px;">
+        <div style="font-size:12px;color:#666;margin-bottom:4px;">クラウド上のエリア：</div>
+        <div id="sync-area-list" style="max-height:180px;overflow-y:auto;font-size:13px;"></div>
+      </div>
+      <button class="btn-cancel" style="margin-top:12px;font-size:12px;" onclick="syncSignOut()">ログアウト</button>
+    </div>
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeSyncModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="groups.js"></script>
 <script src="reorder.js"></script>
@@ -182,5 +216,6 @@
 <script src="lasso-delete.js"></script>
 <script src="reference-pins.js"></script>
 <script src="core.js"></script>
+<script src="sync.js"></script>
 </body>
 </html>
