@@ -1,0 +1,526 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+body.dark #toolbar { background: #1e1e1e; border-top-color: #444; }
+body.dark #toolbar button { background: #333; color: #ddd; border-color: #555; }
+body.dark #toolbar button.active { background: #2E7D32; border-color: #1B5E20; }
+body.dark #pin-count { color: #ccc; }
+body.dark .modal { background: #2a2a2a; color: #ddd; }
+body.dark .modal input, body.dark .modal textarea { background: #333; color: #ddd; border-color: #555; }
+body.dark .btn-cancel { background: #444; color: #ddd; }
+body.dark #toast { background: #555; }
+
+#map { width: 100%; height: 100vh; }
+
+/* ドラッグ&ドロップオーバーレイ */
+body.drag-over::after {
+  content: '📂 JSONファイルをドロップして読み込み';
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5); color: #fff;
+  font-size: 24px; font-weight: bold;
+  pointer-events: none;
+}
+
+/* ツールバー */
+#toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 2px solid #ddd;
+  padding: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 1000;
+  flex-wrap: wrap;
+  align-items: center;
+}
+#toolbar button {
+  padding: 10px 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #f5f5f5;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#toolbar button.active {
+  background: #4CAF50;
+  color: white;
+  border-color: #388E3C;
+}
+#toolbar button:active {
+  opacity: 0.7;
+}
+#pin-count {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* モーダル */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 2000;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  width: 90%;
+  max-width: 360px;
+}
+.modal h3 { margin-bottom: 12px; font-size: 18px; }
+.modal input, .modal textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.modal textarea { height: 60px; resize: vertical; }
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.modal-buttons button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn-save { background: #4CAF50; color: white; }
+.btn-cancel { background: #eee; color: #333; }
+.btn-delete { background: #f44336; color: white; }
+
+/* ピン番号ラベル */
+.pin-icon {
+  background: #1976D2;
+  color: white;
+  border-radius: 50%;
+  width: var(--pin-size, 20px);
+  height: var(--pin-size, 20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--pin-font, 9px);
+  font-weight: bold;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.pin-icon.has-memo {
+  background: #E65100;
+}
+.pin-icon.has-group {
+  background: #7B1FA2;
+}
+.pin-icon.has-group.has-memo {
+  background: #6A1B9A;
+}
+.group-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #FF5722;
+  color: white;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  border: 1px solid white;
+}
+
+/* 重複ピンバッジ */
+.dupe-badge {
+  background: #e53935 !important;
+}
+
+/* ホバーツールチップ */
+.pin-tooltip {
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  max-width: 300px;
+}
+
+/* ルート表示時のスタイル */
+.pin-icon.routed {
+  background: #2E7D32;
+}
+
+/* 並べ替え済みピン */
+.pin-icon.reordered {
+  background: #9C27B0;
+}
+/* 並べ替え未処理ピン（グレーアウト） */
+.pin-icon.reorder-pending {
+  background: #9E9E9E;
+  opacity: 0.6;
+}
+
+/* ルートなぞりモード中のバナー */
+#trace-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #1976D2;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#trace-banner.show { display: block; }
+
+/* ルート編集モード中のバナー */
+#trace-edit-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #E65100;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#trace-edit-banner.show { display: block; }
+
+/* 編集モードのドラッグ可能ポイント */
+.trace-edit-point {
+  background: white;
+  border: 3px solid #E65100;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  cursor: grab;
+}
+.trace-edit-point:active { cursor: grabbing; }
+
+/* 中間追加ポイント（薄い表示） */
+.trace-mid-point {
+  background: rgba(230, 81, 0, 0.3);
+  border: 2px dashed #E65100;
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+/* 並べ替えモード中のバナー */
+#stamp-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #1565C0;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#stamp-banner.show { display: block; }
+
+#reorder-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #9C27B0;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#reorder-banner.show { display: block; }
+
+
+#group-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #5D4037;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#group-banner.show { display: block; }
+
+#trace-reorder-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #E65100;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#trace-reorder-banner.show { display: block; }
+
+#concat-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #E91E63;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#concat-banner.show { display: block; }
+
+#lasso-delete-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #f44336;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+  font-size: 14px;
+  font-weight: bold;
+}
+#lasso-delete-banner.show { display: block; }
+
+/* 古いスナップショット警告バナー */
+#stale-snapshot-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #FF6F00;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1600;
+  font-size: 14px;
+  font-weight: bold;
+}
+#stale-snapshot-banner.show { display: block; }
+
+/* ヘルプオーバーレイ */
+.help-section {
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+.help-section:last-child { border-bottom: none; }
+.help-title {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.help-desc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
+body.dark .help-section { border-bottom-color: #444; }
+body.dark .help-desc { color: #aaa; }
+
+/* ピン一覧パネル */
+#pin-list-panel {
+  position: fixed;
+  top: 0;
+  right: -320px;
+  width: 320px;
+  height: calc(100vh - 56px);
+  background: #fff;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.2);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.25s ease;
+}
+#pin-list-panel.show {
+  right: 0;
+}
+#pin-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #1976D2;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+#pin-list-search {
+  margin: 8px;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+#pin-list-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.pin-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.pin-list-item:hover {
+  background: #e3f2fd;
+}
+.pin-list-num {
+  width: 28px;
+  height: 28px;
+  background: #1976D2;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.pin-list-num.has-memo {
+  background: #E65100;
+}
+.pin-list-info {
+  flex: 1;
+  min-width: 0;
+}
+.pin-list-label {
+  font-size: 13px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pin-list-memo {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pin-list-coords {
+  font-size: 10px;
+  color: #aaa;
+}
+
+/* ダークモード対応 */
+body.dark #pin-list-panel { background: #2a2a2a; }
+body.dark #pin-list-search { background: #333; color: #ddd; border-color: #555; }
+body.dark .pin-list-item { border-bottom-color: #444; }
+body.dark .pin-list-item:hover { background: #333; }
+body.dark .pin-list-label { color: #ddd; }
+body.dark .pin-list-memo { color: #999; }
+body.dark .pin-list-coords { color: #777; }
+
+/* 通知 */
+#toast {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 3000;
+  font-size: 14px;
+}
+#toast.show { display: block; }
+
+/* 地図のタップ領域を広げるためtoolbar分余白 */
+#map { height: calc(100vh - 56px); }
+
+/* === スマホ最適化 (max-width:600px) === */
+@media (max-width: 600px) {
+  /* 100dvh = モバイルのアドレスバー伸縮に追従。ツールバー1行(約50px)分を引く */
+  #map { height: calc(100dvh - 50px); }
+
+  /* ツールバーは折り返さず横1行スクロール → 地図を最大化 */
+  #toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 5px 6px;
+    gap: 4px;
+    /* スクロールバーを細く */
+    scrollbar-width: thin;
+  }
+  #toolbar::-webkit-scrollbar { height: 3px; }
+  #toolbar::-webkit-scrollbar-thumb { background: #bbb; border-radius: 3px; }
+
+  #toolbar button {
+    padding: 9px 11px;     /* タップしやすさ確保（高さ約38px） */
+    font-size: 13px;
+    flex: 0 0 auto;        /* 縮まず横スクロール */
+  }
+
+  /* 件数表示・スライダーは横スクロール内で固定幅 */
+  #pin-count {
+    margin-left: 6px;      /* auto だと横スクロールで端へ飛ぶので固定 */
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+  #reference-count { flex: 0 0 auto; }
+  #pin-size-slider { width: 50px !important; flex: 0 0 auto; }
+  #trace-opacity-slider { width: 44px !important; }
+  #toolbar label { flex: 0 0 auto; white-space: nowrap; }
+
+  /* モーダルを画面いっぱい寄りに（小画面で操作しやすく） */
+  .modal { width: 94%; max-width: none; }
+
+  /* バナー類の文字を少し小さく */
+  #trace-banner, #trace-edit-banner, #reorder-banner, #group-banner { font-size: 12px; }
+}

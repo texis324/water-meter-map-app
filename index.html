@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>水道検針ルートマップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="toolbar">
+  <button id="btn-mode" class="active" onclick="toggleMode()">📍 ピン追加モード</button>
+  <button id="btn-reorder" onclick="toggleReorderMode()">🔢 並替え</button>
+  <button id="btn-trace-reorder" onclick="toggleTraceReorder()">👆 なぞり順</button>
+  <button id="btn-concat" onclick="toggleConcatMode()">🔗 連結</button>
+
+  <button id="btn-group" onclick="toggleGroupMode()">📦 グループ</button>
+  <button id="btn-lasso-delete" onclick="toggleLassoDeleteMode()">🗑️ 範囲削除</button>
+  <button onclick="performUndo()">↩ 戻す</button>
+  <button onclick="performRedo()">↪ 進む</button>
+  <button id="btn-route" onclick="toggleRoute()">🔄 ルート表示</button>
+  <button id="btn-trace" onclick="toggleTraceMode()">✏️ ルート線</button>
+  <button onclick="saveData()">💾 保存</button>
+  <button onclick="exportData()">📤 書出し</button>
+  <button onclick="importData()">📥 読込み</button>
+  <button onclick="importReferenceData()" title="参照ピン（薄表示・スナップ用）を読み込み">📍 参照</button>
+  <button id="btn-snap" class="active" onclick="toggleSnap()" title="新規ピン追加・ドラッグ時に近くの参照ピンへ吸着">🧲 スナップON</button>
+  <span id="reference-count" style="font-size:11px;color:#666;margin-left:4px;"></span>
+  <button id="btn-list" onclick="togglePinList()">📋 一覧</button>
+  <button id="btn-dark" onclick="toggleDark()">🌙</button>
+  <button id="btn-stamp" onclick="toggleStampMode()">🔖 スタンプ</button>
+  <button onclick="checkMissingNumbers()">🔍 欠番</button>
+  <button onclick="detectDuplicateNumbers()" title="同じ番号を持つピンが複数ないか検出">🔁 重複</button>
+  <button id="btn-endpoints" class="active" onclick="toggleEndpoints()">🟢 始終点</button>
+  <button id="btn-help" onclick="toggleHelp()">❓</button>
+  <input type="range" id="pin-size-slider" min="14" max="40" value="20" oninput="changePinSize(this.value)" style="width:60px;vertical-align:middle;" title="ピンサイズ">
+  <label style="font-size:11px;color:#666;vertical-align:middle;margin-left:6px;" title="ルート線の濃さ">🖊️<input type="range" id="trace-opacity-slider" min="10" max="100" value="90" oninput="changeTraceOpacity(this.value)" style="width:50px;vertical-align:middle;"></label>
+  <span id="pin-count">0件</span>
+</div>
+
+<!-- ピン編集モーダル -->
+<div class="modal-overlay" id="pin-modal">
+  <div class="modal">
+    <h3 id="modal-title">ピン情報</h3>
+    <input type="text" id="pin-label" placeholder="ラベル（顧客名・番号など）">
+    <textarea id="pin-memo" placeholder="メモ（メーター位置の特徴など）"></textarea>
+    <div id="color-section" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+      <strong style="font-size:13px;">🎨 ピン色</strong>
+      <div id="color-presets" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <input type="color" id="pin-color" value="#1976D2" style="width:30px;height:30px;border:none;border-radius:4px;cursor:pointer;padding:0;">
+      <button onclick="clearPinColor()" style="padding:2px 8px;border:none;border-radius:4px;background:#eee;color:#666;font-size:11px;cursor:pointer;">リセット</button>
+    </div>
+    <div id="group-section" style="margin-top:8px;border-top:1px solid #ddd;padding-top:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <strong style="font-size:13px;">📦 グループ（団地等）</strong>
+        <button onclick="addGroupItem()" style="padding:2px 8px;border:none;border-radius:4px;background:#1976D2;color:white;font-size:12px;cursor:pointer;">+ 追加</button>
+      </div>
+      <div id="group-items" style="max-height:150px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-buttons">
+      <button class="btn-delete" id="btn-pin-delete" onclick="deletePin()">削除</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-save" onclick="savePin()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ファイル読込用 -->
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="handleImport(event)">
+<input type="file" id="reference-file-input" accept=".json" style="display:none" onchange="handleReferenceImport(event)">
+
+<div id="trace-banner">✏️ ルート線モード: タップして道をなぞってください (<span id="trace-count">0</span>点) <button onclick="undoTrace()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#1976D2;font-weight:bold;cursor:pointer;">戻す</button> <button onclick="clearTrace()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">全消去</button> <button onclick="finishTrace()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:#4CAF50;color:white;font-weight:bold;cursor:pointer;">完了</button></div>
+
+<div id="trace-edit-banner">🔧 ルート編集: ●ドラッグで移動 / 線上タップで追加 / ●タップで削除 <button onclick="finishTraceEdit()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:#4CAF50;color:white;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelTraceEdit()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
+
+<div id="reorder-banner">🔢 <span id="reorder-instruction">開始位置のピンをタップ</span> <span id="reorder-startnum-area">開始: <input type="number" id="reorder-start" value="1" min="1" style="width:50px;padding:2px 4px;border:none;border-radius:4px;font-size:14px;text-align:center;" onchange="reorderAnchorSet=true;updateReorderDisplay()"> 番</span> (<span id="reorder-count">0</span>件済) <button onclick="finishReorder()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#9C27B0;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelReorder()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button> <button onclick="toggleReorderSwapMode()" id="btn-swap-mode" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">入替モード</button></div>
+
+
+<div id="group-banner">📦 グループ化するピンをタップ (<span id="group-select-count">0</span>件選択) <button onclick="finishGroupMode()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#5D4037;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelGroupMode()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
+
+<div id="trace-reorder-banner">👆 なぞると即並べ替え（連続でなぞれます） <button onclick="finishTraceReorder()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#E65100;font-weight:bold;cursor:pointer;">終了</button></div>
+
+<div id="concat-banner">🔗 連結モード: <span id="concat-status">前半の終点ピンをタップ</span> <button onclick="cancelConcat()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#E91E63;font-weight:bold;cursor:pointer;">終了</button></div>
+
+<div id="stamp-banner">🔖 スタンプモード: 次は <b><span id="stamp-next-num">1</span></b>番 <span id="stamp-next-label" style="font-size:12px;opacity:0.9;"></span> <input type="number" id="stamp-num-input" min="1" value="1" style="width:55px;padding:2px 4px;border:none;border-radius:4px;font-size:14px;text-align:center;margin-left:8px;" onchange="setStampNum(parseInt(this.value))"> <button onclick="finishStampMode()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#1976D2;font-weight:bold;cursor:pointer;">終了</button></div>
+
+<div id="stale-snapshot-banner">⚠️ このデータは <b><span id="stale-snapshot-days">?</span>日前</b> のスナップショットです (<span id="stale-snapshot-date">?</span>)。最新の検針データか確認してください。 <button onclick="document.getElementById('stale-snapshot-banner').classList.remove('show')" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">閉じる</button></div>
+
+<div id="lasso-delete-banner">🗑️ マウスドラッグで囲んで選択 (<span id="lasso-delete-count">0</span>件選択) <button onclick="executeLassoDelete()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:#f44336;color:white;font-weight:bold;cursor:pointer;">削除</button> <button onclick="cancelLassoDeleteMode()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
+
+<!-- ヘルプオーバーレイ -->
+<div class="modal-overlay" id="help-modal">
+  <div class="modal" style="max-width:480px;max-height:80vh;overflow-y:auto;">
+    <h3 style="margin-bottom:10px;">❓ 操作ガイド</h3>
+    <div id="help-content">
+      <div class="help-section">
+        <div class="help-title">📍 ピン追加モード / 🔒 閲覧モード</div>
+        <div class="help-desc">タップで切替。追加モード中は地図タップでピンを置ける。閲覧モードではピン追加されない</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">🔢 並替え</div>
+        <div class="help-desc">ピンをタップした順に番号を振り直す。開始番号も指定可能</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">👆 なぞり順</div>
+        <div class="help-desc">マウスドラッグで線を引き、触れたピンを線の順番で自動並べ替え</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">🔗 連結</div>
+        <div class="help-desc">2つのピンをタップして間をスキップ連結。例: 83→141に繋げると、84〜140は後方に移動</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">📦 グループ</div>
+        <div class="help-desc">投げ縄で囲んでグループ化。縮小すると1ピン表示。ダブルクリックで展開/縮小、右クリックで解除</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">🗑️ 範囲削除</div>
+        <div class="help-desc">投げ縄で囲んだピンを一括削除</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">↩ 戻す / ↪ 進む</div>
+        <div class="help-desc">直前の操作を取消し / やり直し</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">🔄 ルート表示</div>
+        <div class="help-desc">Google Directions APIで道路に沿ったルート線を表示</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">✏️ ルート線</div>
+        <div class="help-desc">タップでルートの点を打ち、自由に線を引く。完了後に右クリックで編集可能。濃さスライダーで調節</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">💾 保存 / 📤 書出し / 📥 読込み</div>
+        <div class="help-desc">保存: ブラウザに自動保存。書出し: JSONファイルでダウンロード。読込み: JSONファイルを復元</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">📋 一覧</div>
+        <div class="help-desc">右サイドにピンのリストを表示。検索・タップでピンにジャンプ</div>
+      </div>
+      <div class="help-section" style="border-top:2px solid #1976D2;padding-top:10px;margin-top:6px;">
+        <div class="help-title">🖱️ マウス操作</div>
+        <div class="help-desc">
+          <b>左クリック</b>: ピン削除（即時）<br>
+          <b>ダブルクリック</b>: 同一座標ピン全消去 / グループ展開・縮小<br>
+          <b>右クリック</b>: ピンの詳細編集（ラベル・メモ・色）<br>
+          <b>地図ダブルクリック</b>: Googleストリートビューを開く<br>
+          <b>ドラッグ</b>: ピンの位置を移動
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:12px;">
+      <button class="btn-cancel" onclick="toggleHelp()" style="padding:8px 20px;border:none;border-radius:8px;cursor:pointer;">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ピン一覧パネル -->
+<div id="pin-list-panel">
+  <div id="pin-list-header">
+    <span>📋 ピン一覧 (<span id="pin-list-total">0</span>件)</span>
+    <button onclick="togglePinList()" style="padding:4px 10px;border:none;border-radius:4px;background:rgba(255,255,255,0.2);color:white;cursor:pointer;font-size:14px;">✕</button>
+  </div>
+  <div style="display:flex;gap:4px;padding:0 10px 6px;">
+    <input type="text" id="pin-list-search" placeholder="検索（ラベル・メモ・番号）" oninput="renderPinList()" style="flex:1;">
+    <button onclick="sortPinsByLabel()" title="ラベル番号順に整列" style="padding:4px 8px;border:1px solid rgba(255,255,255,0.3);border-radius:4px;background:rgba(255,255,255,0.15);color:white;cursor:pointer;font-size:13px;white-space:nowrap;">🔢 整列</button>
+  </div>
+  <div id="pin-list-items"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="groups.js"></script>
+<script src="reorder.js"></script>
+<script src="routes.js"></script>
+<script src="storage.js"></script>
+<script src="geocode.js"></script>
+<script src="stamp.js"></script>
+<script src="lasso-delete.js"></script>
+<script src="reference-pins.js"></script>
+<script src="core.js"></script>
+</body>
+</html>
