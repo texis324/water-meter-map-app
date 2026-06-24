@@ -280,10 +280,10 @@ function createMarker(pin) {
     badge = `<span class="group-badge dupe-badge">${dupeCount}</span>`;
   }
   // カスタムカラー: pin.colorがあればCSSクラスの色を上書き
-  // 始点・終点ハイライト（カスタムカラー未設定時）
+  // 始点ハイライト（カスタムカラー未設定時・1番目だけ緑）
   let autoColor = '';
   if (!pin.color && highlightEndpoints) {
-    if (displayNum === 1 || displayNum === pins.length) {
+    if (displayNum === 1) {
       autoColor = 'background:#4CAF50 !important;';
     }
   }
