@@ -581,3 +581,56 @@ body.dark .pin-list-coords { color: #777; }
   }
   #pin-list-panel.show { right: 0; }
 }
+
+/* === 色の凡例 === */
+#map-legend {
+  position: fixed;
+  left: 8px;
+  bottom: 64px;            /* ツールバー(56px)の上 */
+  background: rgba(255,255,255,0.95);
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+  padding: 6px 8px;
+  z-index: 900;
+  font-size: 12px;
+  max-width: 220px;
+}
+#map-legend .ml-head {
+  font-weight: bold; font-size: 11px; margin-bottom: 4px; color: #333;
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
+}
+#map-legend #ml-edit { color: #1976D2; cursor: pointer; font-weight: normal; }
+#map-legend .ml-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+#map-legend .ml-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.2); }
+#map-legend .ml-txt { flex: 1; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#map-legend .ml-cnt { color: #999; font-size: 10px; flex-shrink: 0; }
+
+/* 凡例編集モーダルの行 */
+.legend-erow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eee; }
+.legend-erow:last-child { border-bottom: none; }
+.legend-erow .legend-dot { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.legend-meta { flex: 1; min-width: 0; }
+.legend-erow .legend-input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; margin: 0; }
+.legend-sub { font-size: 10px; color: #999; }
+
+body.dark #map-legend { background: rgba(40,40,40,0.95); }
+body.dark #map-legend .ml-head, body.dark #map-legend .ml-txt { color: #ddd; }
+body.dark .legend-erow { border-bottom-color: #444; }
+body.dark .legend-erow .legend-input { background: #333; color: #ddd; border-color: #555; }
+
+@media (max-width: 600px) {
+  #map-legend {
+    bottom: calc(56px + env(safe-area-inset-bottom) + 4px);
+    font-size: 11px; max-width: 44vw;
+  }
+  .legend-erow .legend-input { font-size: 16px; }  /* iOS自動ズーム防止 */
+}
+
+/* 提出用「旧順表」 */
+.submit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.submit-table th, .submit-table td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+.submit-table th { background: #f5f5f5; position: sticky; top: 0; z-index: 1; }
+.submit-table td:nth-child(1), .submit-table td:nth-child(2) { text-align: center; white-space: nowrap; }
+.submit-table .submit-memo { color: #888; font-size: 11px; max-width: 220px; }
+body.dark .submit-table th { background: #333; }
+body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }

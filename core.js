@@ -587,6 +587,7 @@ function refreshAllMarkers() {
 function updatePinCount() {
   document.getElementById('pin-count').textContent = pins.length + '件';
   if (pinListOpen) renderPinList();
+  if (window.refreshMapLegend) window.refreshMapLegend();
 }
 
 function changePinSize(val) {
