@@ -25,9 +25,49 @@
     const store = {};
     Object.keys(m).forEach(k => { if (!(DEFAULTS[k] && DEFAULTS[k] === m[k])) store[k] = m[k]; });
     localStorage.setItem(LS_KEY, JSON.stringify(store));
+    pushLegendToCloud();
   }
 
   let legend = loadLegend();
+
+  // ---- クラウド同期(全デバイス共有: meta/legend ドキュメント) ----
+  // 色の意味は全エリア共通。ログイン時に cloud→local を反映し、編集時に local→cloud へ push。
+  const CLOUD = (typeof firebase !== 'undefined' && firebase.firestore);
+  function legendDoc() { return firebase.firestore().collection('meta').doc('legend'); }
+  function legendUser() { try { return firebase.auth().currentUser; } catch (e) { return null; } }
+  function storeOf(m) {
+    const s = {};
+    Object.keys(m).forEach(k => { if (!(DEFAULTS[k] && DEFAULTS[k] === m[k])) s[k] = m[k]; });
+    return s;
+  }
+  function pushLegendToCloud() {
+    if (!CLOUD || !legendUser()) return;
+    try {
+      legendDoc().set({
+        legend: storeOf(legend),
+        clientTime: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (e) { console.warn('[legend] push失敗', e); }
+  }
+  function pullLegendFromCloud() {
+    if (!CLOUD || !legendUser()) return;
+    legendDoc().get().then(function (snap) {
+      if (!snap.exists) return;
+      const cl = (snap.data() && snap.data().legend) || {};
+      const store = {};
+      Object.keys(cl).forEach(function (k) {
+        if (!(DEFAULTS[norm(k)] && DEFAULTS[norm(k)] === cl[k])) store[norm(k)] = cl[k];
+      });
+      localStorage.setItem(LS_KEY, JSON.stringify(store));
+      legend = loadLegend();
+      if (window.refreshMapLegend) window.refreshMapLegend();
+      console.log('[legend] cloud pull: ' + Object.keys(store).length + '色');
+    }).catch(function (e) { console.warn('[legend] pull失敗', e); });
+  }
+  if (CLOUD) {
+    try { firebase.auth().onAuthStateChanged(function (u) { if (u) pullLegendFromCloud(); }); } catch (e) {}
+  }
 
   // 現在地図で使われている色 -> 件数 (空文字=通常ピンは除外)
   function usedColors() {
