@@ -6,10 +6,10 @@
   'use strict';
   function arr() { return (typeof pins !== 'undefined' && pins) ? pins : []; }
 
-  // label "新No. 住所 使用者名" を {no, rest} に分解
+  // label "新No. 住所 使用者名" を {no, rest} に分解（番号の読み取りはcore.jsの共通ヘルパーに委譲）
   function parseLabel(label) {
-    const m = (label || '').match(/^\s*(\d+(?:\.\d+)?)[\.．]\s*(.*)$/);
-    return m ? { no: m[1], rest: m[2] } : { no: '', rest: (label || '') };
+    const n = getLabelNum(label);
+    return { no: n === null ? '' : String(n), rest: stripLabelNum(label) };
   }
   function hasOld(p) { return p.old_no !== undefined && p.old_no !== null && String(p.old_no).trim() !== ''; }
 

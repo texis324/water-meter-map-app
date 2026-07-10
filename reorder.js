@@ -1,10 +1,11 @@
 // --- ラベル番号の振り直し ---
 // pins配列の並び順に合わせてラベルの先頭番号を更新する（idは変更しない）
+// ラベルが空のピンは触らない。番号なしラベルには番号を付与する
+// （旧実装はreplace無反応でスキップ=提出表の新Noが空欄になる穴だった）
 function relabelPins() {
   pins.forEach((pin, i) => {
-    const num = i + 1;
     if (pin.label) {
-      pin.label = pin.label.replace(/^\d+\./, `${num}.`);
+      pin.label = setLabelNum(pin.label, i + 1);
     }
   });
 }
@@ -477,8 +478,7 @@ function handleConcatTap(pinId) {
   const pin = pins.find(p => p.id === pinId);
   if (!pin) return;
 
-  const labelMatch = (pin.label || '').match(/^(\d+)\./);
-  const pinNum = labelMatch ? parseInt(labelMatch[1]) : null;
+  const pinNum = getLabelNum(pin.label);
 
   if (!concatFirst) {
     // 1つ目: 前半の終点
@@ -502,8 +502,7 @@ function handleConcatTap(pinId) {
       return;
     }
 
-    const firstMatch = (concatFirst.label || '').match(/^(\d+)\./);
-    const firstNum = firstMatch ? parseInt(firstMatch[1]) : null;
+    const firstNum = getLabelNum(concatFirst.label);
     const secondNum = pinNum;
 
     // pins配列でのインデックスを取得

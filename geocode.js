@@ -76,16 +76,15 @@ function reverseGeocode(lat, lng) {
       </div>`;
 
       // 近くのピンの番号を取得して、その番号に近い重複ピンを候補にする
-      const getNum = lbl => { const m = (lbl||'').match(/^(\d+)\./); return m ? parseInt(m[1]) : null; };
       const nearbyNums = pins.map(p => ({
-        num: getNum(p.label),
+        num: getLabelNum(p.label),
         dist: Math.sqrt(Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2))
       })).filter(x => x.num !== null).sort((a, b) => a.dist - b.dist).slice(0, 5).map(x => x.num);
       const avgNum = nearbyNums.length > 0 ? Math.round(nearbyNums.reduce((a,b)=>a+b,0) / nearbyNums.length) : 0;
 
       // 重複ピンを番号の近さ順で候補リスト生成
       const dupPins = pins.filter(p => pins.some(q => q.id !== p.id && q.lat === p.lat && q.lng === p.lng));
-      const candidates = dupPins.map(p => ({ pin: p, num: getNum(p.label) || 0 }))
+      const candidates = dupPins.map(p => ({ pin: p, num: getLabelNum(p.label) || 0 }))
         .sort((a, b) => b.num - a.num);
       const candidateHtml = candidates.map(c => {
         const p = c.pin;
@@ -150,10 +149,7 @@ function callPinHere(lat, lng) {
   if (!input) return;
   const num = parseInt(input.value);
   if (!num || num < 1) { showToast('番号を入力してください'); return; }
-  const pin = pins.find(p => {
-    const m = (p.label || '').match(/^(\d+)\./);
-    return m && parseInt(m[1]) === num;
-  });
+  const pin = findPinByNum(num);
   if (!pin) { showToast(`#${num} のピンが見つかりません`); return; }
   pushUndo();
   pin.lat = lat;

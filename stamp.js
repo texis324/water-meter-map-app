@@ -39,10 +39,7 @@ function updateStampDisplay() {
   document.getElementById('stamp-next-num').textContent = stampNum;
   document.getElementById('stamp-num-input').value = stampNum;
   // 該当番号のピンのラベルを表示
-  const pin = pins.find(p => {
-    const m = (p.label || '').match(/^(\d+)\./);
-    return m && parseInt(m[1]) === stampNum;
-  });
+  const pin = findPinByNum(stampNum);
   const labelEl = document.getElementById('stamp-next-label');
   if (pin) {
     labelEl.textContent = '→ ' + pin.label;
@@ -53,26 +50,8 @@ function updateStampDisplay() {
 
 function handleStampTap(latlng) {
   // 現在の番号のピンを探して移動、またはなければ新規作成
-  const targetPin = pins.find(p => {
-    const m = (p.label || '').match(/^(\d+)\./);
-    return m && parseInt(m[1]) === stampNum;
-  });
-
-  // 案A: 重複チェック - 同じ番号を持つピンが既にあれば新規作成を拒否
-  // （targetPin が見つかった場合は「移動」なので問題なし、ここは新規作成パスのみガード）
-  if (!targetPin) {
-    const sameNumPins = pins.filter(p => {
-      const m = (p.label || '').match(/^(\d+)\./);
-      return m && parseInt(m[1]) === stampNum;
-    });
-    if (sameNumPins.length > 0) {
-      // 念のための二重防御（targetPin で拾えたはず、ここは到達しないが将来の改修保険）
-      showToast(`⚠️ #${stampNum} は既に存在します`);
-      return;
-    }
-    // さらに「次の空き番号」を提案する代わりに、明示的に新規作成を許可する確認
-    // ここは新規追加なので警告だけ、操作は継続
-  }
+  // （findPinByNumが唯一の探索なので、旧実装にあった同一条件の二重防御filterは撤去）
+  const targetPin = findPinByNum(stampNum);
 
   pushUndo();
 
@@ -100,16 +79,15 @@ function handleStampTap(latlng) {
 function findDuplicateNumbers() {
   const numMap = {};  // num -> [pin, pin, ...]
   pins.forEach(p => {
-    const m = (p.label || '').match(/^(\d+)\./);
-    if (m) {
-      const num = parseInt(m[1]);
+    const num = getLabelNum(p.label);
+    if (num !== null) {
       if (!numMap[num]) numMap[num] = [];
       numMap[num].push(p);
     }
   });
   return Object.entries(numMap)
     .filter(([num, arr]) => arr.length > 1)
-    .map(([num, arr]) => ({ num: parseInt(num), pins: arr }))
+    .map(([num, arr]) => ({ num: parseFloat(num), pins: arr }))
     .sort((a, b) => a.num - b.num);
 }
 

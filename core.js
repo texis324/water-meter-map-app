@@ -14,6 +14,33 @@ let isDark = localStorage.getItem('waterMeterDark') === 'true';
 // グループ囲み管理
 let pinGroups = [];       // [{ id, name, pinIds: [...] }, ...]
 
+// --- 順路番号ヘルパー（ラベル先頭番号の読み書きはここへ集約） ---
+// ラベル形式は「番号. 住所 氏名」。先頭番号が業務上の順路番号の正本（欠番・枝番も情報として保持）。
+// パースは寛容: 全角ドット「12．」・枝番「238.1」も受ける（旧はsubmit.jsだけ対応の非対称だった）。
+// 生成(setLabelNum)は常に半角「N. 」形式。
+const LABEL_NUM_RE = /^\s*(\d+(?:\.\d+)?)[\.．]\s*/;
+
+// ラベル先頭の順路番号を数値で返す（無ければ null。枝番"238.1"は238.1のまま返す）
+function getLabelNum(label) {
+  const m = (label || '').match(LABEL_NUM_RE);
+  return m ? parseFloat(m[1]) : null;
+}
+
+// ラベルから番号部分を除いた本文（住所 氏名）を返す
+function stripLabelNum(label) {
+  return (label || '').replace(LABEL_NUM_RE, '');
+}
+
+// ラベルへ順路番号を書き込む（既存番号は置換・「N. 本文」形式に正規化）
+function setLabelNum(label, num) {
+  return `${num}. ${stripLabelNum(label)}`;
+}
+
+// 指定番号のピンを探す（スタンプ起点・呼出し・欠番チェックの前後表示用）
+function findPinByNum(num) {
+  return pins.find(p => getLabelNum(p.label) === num) || null;
+}
+
 // Undo/Redoシステム
 let undoStack = [];
 let redoStack = [];
@@ -329,11 +356,12 @@ function createMarker(pin) {
     L.DomEvent.stopPropagation(e);
     if (stampMode) {
       // スタンプモード: 既存ピンクリックで起点変更
-      const m = (pin.label || '').match(/^(\d+)\./);
-      if (m) {
-        stampNum = parseInt(m[1]) + 1;
+      const n = getLabelNum(pin.label);
+      if (n !== null) {
+        const base = Math.floor(n); // 枝番(238.1等)は整数部を起点にする
+        stampNum = base + 1;
         updateStampDisplay();
-        showToast(`#${parseInt(m[1])} の次 → #${stampNum} から配置`);
+        showToast(`#${base} の次 → #${stampNum} から配置`);
       }
       return;
     }
@@ -433,11 +461,12 @@ function createMarker(pin) {
     pin.lng = pos.lng;
     // スタンプモード中: ドラッグしたピンの番号を起点にする
     if (stampMode) {
-      const m = (pin.label || '').match(/^(\d+)\./);
-      if (m) {
-        stampNum = parseInt(m[1]) + 1;
+      const n = getLabelNum(pin.label);
+      if (n !== null) {
+        const base = Math.floor(n); // 枝番は整数部を起点にする
+        stampNum = base + 1;
         updateStampDisplay();
-        showToast(`#${parseInt(m[1])} を移動 → 次は #${stampNum}`);
+        showToast(`#${base} を移動 → 次は #${stampNum}`);
       }
     }
     // 重複バッジ・ツールチップを再計算するため全マーカー再構築
@@ -730,15 +759,12 @@ function renderPinList() {
 
   let html = '';
   const sortedPins = [...pins].sort((a, b) => {
-    const aMatch = (a.label || '').match(/^(\d+)\./);
-    const bMatch = (b.label || '').match(/^(\d+)\./);
-    const aNum = aMatch ? parseInt(aMatch[1]) : Infinity;
-    const bNum = bMatch ? parseInt(bMatch[1]) : Infinity;
+    const aNum = getLabelNum(a.label) ?? Infinity;
+    const bNum = getLabelNum(b.label) ?? Infinity;
     return aNum - bNum;
   });
   sortedPins.forEach((pin, i) => {
-    const labelMatch = (pin.label || '').match(/^(\d+)\./);
-    const num = labelMatch ? parseInt(labelMatch[1]) : i + 1;
+    const num = getLabelNum(pin.label) ?? (i + 1);
     const label = pin.label || '';
     const memo = pin.memo || '';
     const numStr = String(num);
@@ -776,10 +802,8 @@ function sortPinsByLabel() {
   if (pins.length === 0) return;
   pushUndo();
   pins.sort((a, b) => {
-    const aMatch = (a.label || '').match(/^(\d+)\./);
-    const bMatch = (b.label || '').match(/^(\d+)\./);
-    const aNum = aMatch ? parseInt(aMatch[1]) : Infinity;
-    const bNum = bMatch ? parseInt(bMatch[1]) : Infinity;
+    const aNum = getLabelNum(a.label) ?? Infinity;
+    const bNum = getLabelNum(b.label) ?? Infinity;
     return aNum - bNum;
   });
   saveToStorage();
@@ -813,10 +837,7 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ラベルから先頭の番号部分を除去（例: "66. 伊勢市..." → "伊勢市..."）
-function stripLabelNum(label) {
-  return (label || '').replace(/^\d+\.\s*/, '');
-}
+// stripLabelNum → ファイル先頭の順路番号ヘルパー群に移設済み
 
 // 範囲削除モード → lasso-delete.js
 
@@ -830,10 +851,7 @@ function showToast(msg) {
 // --- 欠番検出 ---
 function checkMissingNumbers() {
   // ラベルの先頭番号を抽出
-  const nums = pins.map(p => {
-    const m = (p.label || '').match(/^(\d+)\./);
-    return m ? parseInt(m[1]) : null;
-  }).filter(n => n !== null);
+  const nums = pins.map(p => getLabelNum(p.label)).filter(n => n !== null);
 
   if (nums.length === 0) {
     showToast('番号付きピンがありません');
@@ -858,8 +876,8 @@ function checkMissingNumbers() {
     <div style="max-height:300px;overflow-y:auto;">`;
 
   missing.forEach(num => {
-    const prev = pins.find(p => (p.label||'').match(new RegExp(`^${num - 1}\\.`)));
-    const next = pins.find(p => (p.label||'').match(new RegExp(`^${num + 1}\\.`)));
+    const prev = findPinByNum(num - 1);
+    const next = findPinByNum(num + 1);
     const prevLabel = prev ? prev.label : '';
     const nextLabel = next ? next.label : '';
     html += `<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:12px;">

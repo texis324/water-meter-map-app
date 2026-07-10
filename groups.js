@@ -230,10 +230,8 @@ function isHiddenByGroup(pin) {
 // ピンの表示番号を計算（縮小グループは1カウント）
 function getDisplayNumber(pin) {
   // ラベルの先頭番号があればそれを使う（注釈の番号が正）
-  if (pin.label) {
-    const m = pin.label.match(/^(\d+)\./);
-    if (m) return parseInt(m[1]);
-  }
+  const labelNum = getLabelNum(pin.label);
+  if (labelNum !== null) return labelNum;
   // ラベルがない場合はpins配列での順番
   let num = 0;
   for (const p of pins) {
