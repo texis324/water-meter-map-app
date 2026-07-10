@@ -153,14 +153,25 @@
           toast('⬇️ クラウドから「' + area + '」を取得しました');
         });
       } else if (cloud && hasLocal) {
+        // ★どちらの分岐もキャンセル=何もしない(データ不変)。
+        //   旧実装は「ローカルが新しい」を無確認push、「クラウドが新しい」のキャンセルもpushで、
+        //   古いローカルを持つ端末がログインしただけでクラウドを巻き戻す事故があった
+        //   (2026-07-07 小木1区の紫化消失)。
+        var cloudCount = cloud.count || 0;
         if (ct > lt + 1000) { // クラウドが明確に新しい
-          if (confirm('クラウドのデータ（' + area + '）の方が新しいようです。\nクラウド版を読み込みますか？\n（キャンセル＝ローカル版を保持してクラウドへ上書き）')) {
+          if (confirm('クラウドのデータ（' + area + ' ' + cloudCount + '件）の方が新しいようです。\nクラウド版を読み込みますか？\n（キャンセル＝何もしない。手動同期は☁️メニューから）')) {
             return cloudPull(area, { silent: true }).then(function () { toast('⬇️ クラウド版を読み込みました'); });
           } else {
-            return cloudPush();
+            toast('同期を保留しました（☁️の⬆️/⬇️で手動同期できます）');
+            setSyncStatus('pending', area + ' 同期保留');
           }
-        } else if (lt > ct + 1000) {
-          return cloudPush();
+        } else if (lt > ct + 1000) { // ローカルが明確に新しい
+          if (confirm('この端末のデータ（' + area + ' ' + pins.length + '件）の方が新しいようです。\nクラウド（' + cloudCount + '件）をこの端末の内容で上書きしますか？\n（キャンセル＝何もしない。手動同期は☁️メニューから）')) {
+            return cloudPush();
+          } else {
+            toast('同期を保留しました（☁️の⬆️/⬇️で手動同期できます）');
+            setSyncStatus('pending', area + ' 同期保留');
+          }
         } else {
           setSyncStatus('synced', area);
         }
