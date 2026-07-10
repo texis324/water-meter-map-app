@@ -533,7 +533,7 @@ function handleConcatTap(pinId) {
 
     showToast(`#${numA} → #${numB} に連結しました（${skipped.length}件を後方へ移動）`);
 
-    refreshAllMarkers();
+    // マーカー再構築は cancelConcat 内の refreshAllMarkers に任せる（二重再構築防止）
     saveToStorage();
     updatePinCount();
     cancelConcat();

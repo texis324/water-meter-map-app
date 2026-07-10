@@ -11,37 +11,50 @@
 
 <div id="map"></div>
 
+<div id="search-box">
+  <input id="search-input" type="search" placeholder="建物名・住所で検索（例: ラ・ルーチェ）" onkeydown="if(event.key==='Enter')doGeoSearch()">
+  <button onclick="doGeoSearch()" title="検索">🔍</button>
+</div>
+
 <div id="toolbar">
   <button id="btn-mode" class="active" onclick="toggleMode()">📍 ピン追加モード</button>
+  <button id="btn-menu-edit" onclick="toggleToolbarMenu('edit')" title="並べ替え・グループ等の編集モード">✏️ 編集 ▾</button>
+  <button id="btn-sync" onclick="openSyncModal()" title="スマホ⇔PCでデータ同期（クラウド）">☁️ 同期</button><span id="sync-status" style="font-size:13px;color:#1976D2;vertical-align:middle;"></span>
+  <button id="btn-list" onclick="togglePinList()">📋 一覧</button>
+  <button onclick="openSubmit()" title="旧番号順＋新番号列の提出用表">📋 旧順表</button>
+  <button onclick="performUndo()">↩ 戻す</button>
+  <button onclick="performRedo()">↪ 進む</button>
+  <button id="btn-dark" onclick="toggleDark()">🌙</button>
+  <button id="btn-help" onclick="toggleHelp()">❓</button>
+  <button id="btn-menu-more" onclick="toggleToolbarMenu('more')" title="データ入出力・チェック・表示設定">⚙️ その他 ▾</button>
+  <span id="pin-count">0件</span>
+</div>
+
+<!-- ✏️ 編集メニュー（モード系・上に開くドロップアップ） -->
+<div id="menu-edit" class="toolbar-menu">
   <button id="btn-reorder" onclick="toggleReorderMode()">🔢 並替え</button>
   <button id="btn-trace-reorder" onclick="toggleTraceReorder()">👆 なぞり順</button>
   <button id="btn-concat" onclick="toggleConcatMode()">🔗 連結</button>
-
+  <button id="btn-stamp" onclick="toggleStampMode()">🔖 スタンプ</button>
   <button id="btn-group" onclick="toggleGroupMode()">📦 グループ</button>
   <button id="btn-lasso-delete" onclick="toggleLassoDeleteMode()">🗑️ 範囲削除</button>
-  <button onclick="performUndo()">↩ 戻す</button>
-  <button onclick="performRedo()">↪ 進む</button>
-  <button id="btn-route" onclick="toggleRoute()">🔄 ルート表示</button>
   <button id="btn-trace" onclick="toggleTraceMode()">✏️ ルート線</button>
-  <button onclick="saveData()">💾 保存</button>
-  <button onclick="exportData()">📤 書出し</button>
+  <button id="btn-route" onclick="toggleRoute()">🔄 ルート表示</button>
+</div>
+
+<!-- ⚙️ その他メニュー（データ入出力・参照ピン・チェック・表示設定） -->
+<div id="menu-more" class="toolbar-menu">
+  <button onclick="exportData()">📤 書出し（JSONバックアップ）</button>
   <button onclick="importData()">📥 読込み</button>
-  <button id="btn-sync" onclick="openSyncModal()" title="スマホ⇔PCでデータ同期（クラウド）">☁️ 同期</button><span id="sync-status" style="font-size:13px;color:#1976D2;vertical-align:middle;"></span>
-  <button onclick="importReferenceData()" title="参照ピン（薄表示・スナップ用）を読み込み">📍 参照</button>
+  <button onclick="importReferenceData()" title="参照ピン（薄表示・スナップ用）を読み込み">📍 参照読込 <span id="reference-count" style="font-size:11px;color:#999;"></span></button>
   <button id="btn-snap" class="active" onclick="toggleSnap()" title="新規ピン追加・ドラッグ時に近くの参照ピンへ吸着">🧲 スナップON</button>
-  <span id="reference-count" style="font-size:11px;color:#666;margin-left:4px;"></span>
-  <button id="btn-list" onclick="togglePinList()">📋 一覧</button>
+  <button onclick="clearReferencePins()">🚫 参照クリア</button>
   <button onclick="openLegend()" title="ピンの色に意味を登録して凡例表示">🏷 凡例</button>
-  <button onclick="openSubmit()" title="旧番号順＋新番号列の提出用表">📋 旧順表</button>
-  <button id="btn-dark" onclick="toggleDark()">🌙</button>
-  <button id="btn-stamp" onclick="toggleStampMode()">🔖 スタンプ</button>
-  <button onclick="checkMissingNumbers()">🔍 欠番</button>
-  <button onclick="detectDuplicateNumbers()" title="同じ番号を持つピンが複数ないか検出">🔁 重複</button>
-  <button id="btn-endpoints" class="active" onclick="toggleEndpoints()">🟢 始終点</button>
-  <button id="btn-help" onclick="toggleHelp()">❓</button>
-  <input type="range" id="pin-size-slider" min="14" max="40" value="20" oninput="changePinSize(this.value)" style="width:60px;vertical-align:middle;" title="ピンサイズ">
-  <label style="font-size:11px;color:#666;vertical-align:middle;margin-left:6px;" title="ルート線の濃さ">🖊️<input type="range" id="trace-opacity-slider" min="10" max="100" value="90" oninput="changeTraceOpacity(this.value)" style="width:50px;vertical-align:middle;"></label>
-  <span id="pin-count">0件</span>
+  <button onclick="checkMissingNumbers()">🔍 欠番チェック</button>
+  <button onclick="detectDuplicateNumbers()" title="同じ番号を持つピンが複数ないか検出">🔁 重複チェック</button>
+  <button id="btn-endpoints" class="active" onclick="toggleEndpoints()">🟢 始点ハイライト</button>
+  <div class="menu-slider" title="ピンサイズ"><span>📏 ピンサイズ</span><input type="range" id="pin-size-slider" min="14" max="40" value="20" oninput="changePinSize(this.value)"></div>
+  <div class="menu-slider" title="ルート線の濃さ"><span>🖊️ 線の濃さ</span><input type="range" id="trace-opacity-slider" min="10" max="100" value="90" oninput="changeTraceOpacity(this.value)"></div>
 </div>
 
 <!-- ピン編集モーダル -->
@@ -136,8 +149,12 @@
         <div class="help-desc">タップでルートの点を打ち、自由に線を引く。完了後に右クリックで編集可能。濃さスライダーで調節</div>
       </div>
       <div class="help-section">
-        <div class="help-title">💾 保存 / 📤 書出し / 📥 読込み</div>
-        <div class="help-desc">保存: ブラウザに自動保存。書出し: JSONファイルでダウンロード。読込み: JSONファイルを復元</div>
+        <div class="help-title">✏️ 編集 ▾ / ⚙️ その他 ▾</div>
+        <div class="help-desc">編集: 並替え・スタンプ等のモードをまとめたメニュー。その他: 書出し/読込み・参照ピン・チェック・表示設定</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">💾 保存について</div>
+        <div class="help-desc">操作のたびにブラウザへ自動保存（ログイン中は自動でクラウドにも同期）。手動保存は不要。JSONバックアップは⚙️その他→書出し</div>
       </div>
       <div class="help-section">
         <div class="help-title">📋 一覧</div>
@@ -231,6 +248,16 @@
   </div>
 </div>
 
+<!-- 汎用結果モーダル（欠番チェック等の結果表示。ヘルプとは別物） -->
+<div class="modal-overlay" id="result-modal">
+  <div class="modal" style="max-width:480px;max-height:80vh;overflow-y:auto;">
+    <div id="result-content"></div>
+    <div style="text-align:right;margin-top:12px;">
+      <button class="btn-cancel" onclick="document.getElementById('result-modal').classList.remove('show')" style="padding:8px 20px;border:none;border-radius:8px;cursor:pointer;">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js"></script>
@@ -249,5 +276,6 @@
 <script src="sync.js"></script>
 <script src="legend.js"></script>
 <script src="submit.js"></script>
+<script src="search.js"></script>
 </body>
 </html>

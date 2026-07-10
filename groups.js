@@ -236,13 +236,8 @@ function getDisplayNumber(pin) {
   }
   // ラベルがない場合はpins配列での順番
   let num = 0;
-  const seenGroups = new Set();
   for (const p of pins) {
     if (isHiddenByGroup(p)) continue;
-    const grp = pinGroups.find(g => g.collapsed && g.pinIds[0] === p.id);
-    if (grp && !seenGroups.has(grp.id)) {
-      seenGroups.add(grp.id);
-    }
     num++;
     if (p.id === pin.id) return num;
   }
@@ -305,8 +300,9 @@ function drawGroupCircles() {
   });
 
   // 新式のpinGroups対応
+  const pinById = new Map(pins.map(p => [p.id, p]));
   pinGroups.forEach(grp => {
-    const grpPins = grp.pinIds.map(id => pins.find(p => p.id === id)).filter(Boolean);
+    const grpPins = grp.pinIds.map(id => pinById.get(id)).filter(Boolean);
     if (grpPins.length < 1) return;
 
     const { corners, center } = getGroupCorners(grp, grpPins);

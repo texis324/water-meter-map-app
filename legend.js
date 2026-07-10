@@ -82,9 +82,6 @@
     return c;
   }
 
-  // 他ファイルから色の意味を引きたい時用
-  window.getColorMeaning = function (hex) { return legend[norm(hex)] || ''; };
-
   function legendVisible() { return localStorage.getItem(SHOW_KEY) !== 'off'; }
 
   // ---- 地図左下の常時表示凡例 ----

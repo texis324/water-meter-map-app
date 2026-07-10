@@ -3,9 +3,9 @@ let pins = [];           // { id, lat, lng, label, memo, group? }
 let pinMode = true;      // ピン追加モード
 let markers = {};        // id -> L.marker
 let editingPinId = null;
-let routeLine = null; // legacy, kept for import compatibility
 let nextId = 1;
 let _bulkLoading = false; // 一括読み込み中はsaveToStorage抑制
+let _markerCache = null;  // refreshAllMarkers中だけ有効な共有インデックス（起動時のloadFromStorageより前に要宣言＝TDZ回避）
 let pinListOpen = false;  // ピン一覧パネルの開閉状態
 // localStorage に保存済みなら復元、未保存なら true 既定
 let highlightEndpoints = (localStorage.getItem('waterMeterHighlightEndpoints') ?? 'true') === 'true';
@@ -27,7 +27,7 @@ function pushUndo() {
 
 function performUndo() {
   if (undoStack.length === 0) {
-    showToast('やり直す操作がありません');
+    showToast('戻す操作がありません');
     return;
   }
   // 現在の状態をredoスタックに保存
@@ -223,8 +223,7 @@ map.on('dblclick', function(e) {
 // --- ピン追加 ---
 function addPin(lat, lng, label, memo, id, extra) {
   let pinId = id || nextId++;
-  if (!id && pinId >= nextId) nextId = pinId + 1;
-  if (id && pinId >= nextId) nextId = pinId + 1;
+  if (pinId >= nextId) nextId = pinId + 1;
 
   // ID衝突チェック: 既存pinまたはmarkerと同IDの場合、新規IDを払い出す
   if (markers[pinId] || pins.some(p => p.id === pinId)) {
@@ -246,11 +245,12 @@ function addPin(lat, lng, label, memo, id, extra) {
   }
   pins.push(pin);
 
-  const marker = createMarker(pin);
-  markers[pinId] = marker;
-
-  updatePinCount();
-  if (!_bulkLoading) saveToStorage();
+  // 一括読込中はマーカー生成・カウント更新をスキップ（applyDataset末尾でまとめて構築）
+  if (!_bulkLoading) {
+    markers[pinId] = createMarker(pin);
+    updatePinCount();
+    saveToStorage();
+  }
 }
 
 function getPinSize() {
@@ -260,9 +260,13 @@ function getPinSize() {
 function createMarker(pin) {
   const displayNum = getDisplayNumber(pin);
   const sz = getPinSize();
-  const inGroup = pinGroups.some(g => g.pinIds.includes(pin.id));
-  const collapsedGrp = pinGroups.find(g => g.collapsed && g.pinIds[0] === pin.id);
+  // 全更新中は共有インデックス(_markerCache)でO(1)参照、単体呼び出し時は従来の走査
+  const cache = _markerCache;
+  const inGroup = cache ? cache.inGroupIds.has(pin.id) : pinGroups.some(g => g.pinIds.includes(pin.id));
+  const collapsedGrp = cache ? cache.collapsedRepMap.get(pin.id) : pinGroups.find(g => g.collapsed && g.pinIds[0] === pin.id);
   const hasOldGroup = pin.group && pin.group.length;
+  const sameLoc = cache ? (cache.coordPins.get(pin.lat + ',' + pin.lng) || [pin])
+                        : pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
   const classes = [
     'pin-icon',
     pin.memo ? 'has-memo' : '',
@@ -270,7 +274,7 @@ function createMarker(pin) {
   ].filter(Boolean).join(' ');
   // 縮小グループの代表ピン: バッジに件数表示
   // 同一座標の重複件数バッジ
-  const dupeCount = pins.filter(p => p.lat === pin.lat && p.lng === pin.lng).length;
+  const dupeCount = sameLoc.length;
   let badge = '';
   if (collapsedGrp) {
     badge = `<span class="group-badge">${collapsedGrp.pinIds.length}</span>`;
@@ -302,8 +306,6 @@ function createMarker(pin) {
 
   // ホバーでラベル表示（ツールチップ）
   {
-    const sameLoc = pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
-    const dupeCount = sameLoc.length;
     const labelText = stripLabelNum(pin.label) || `ピン #${displayNum}`;
     let tooltipHtml = `<b>#${displayNum} ${escapeHtml(labelText)}</b>`;
     if (pin.memo) tooltipHtml += `<br><span style="color:#666">${escapeHtml(pin.memo)}</span>`;
@@ -409,6 +411,15 @@ function createMarker(pin) {
 
   // ドラッグで位置修正
   marker.on('dragend', function(e) {
+    // 閲覧モード(pinMode OFF かつ他モード全OFF)では位置を戻して何も変更しない
+    // — 地図パンのつもりで指がピンに乗った時の誤移動＋自動push事故防止
+    if (!pinMode && !stampMode && !reorderMode && !traceReorderMode && !concatMode &&
+        !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode) {
+      e.target.setLatLng([pin.lat, pin.lng]);
+      showToast('🔒 閲覧モード中はピンを移動できません');
+      return;
+    }
+    pushUndo();
     let pos = e.target.getLatLng();
     // 参照ピンへ磁石スナップ
     if (typeof snapToReference === 'function') {
@@ -571,15 +582,42 @@ function toggleMode() {
 }
 
 // --- マーカー全更新 ---
+// _markerCache（宣言はファイル先頭）: refresh中だけ有効な共有インデックス。
+// createMarkerのピン毎O(n)検索（座標重複・グループ所属）をO(1)にする
+function buildMarkerCache() {
+  const coordPins = new Map();       // "lat,lng" -> その座標のピン配列
+  pins.forEach(p => {
+    const k = p.lat + ',' + p.lng;
+    const arr = coordPins.get(k);
+    if (arr) arr.push(p); else coordPins.set(k, [p]);
+  });
+  const inGroupIds = new Set();      // グループ所属ピンid
+  const collapsedRepMap = new Map(); // 縮小グループ代表ピンid -> グループ
+  const hiddenIds = new Set();       // 縮小グループの非代表ピンid（非表示）
+  pinGroups.forEach(g => {
+    g.pinIds.forEach(id => inGroupIds.add(id));
+    if (g.collapsed && g.pinIds.length) {
+      collapsedRepMap.set(g.pinIds[0], g);
+      g.pinIds.slice(1).forEach(id => hiddenIds.add(id));
+    }
+  });
+  return { coordPins, inGroupIds, collapsedRepMap, hiddenIds };
+}
+
 function refreshAllMarkers() {
   for (const id in markers) {
     map.removeLayer(markers[id]);
   }
   markers = {};
-  pins.forEach(pin => {
-    if (isHiddenByGroup(pin)) return; // 縮小グループの非代表ピンは非表示
-    markers[pin.id] = createMarker(pin);
-  });
+  _markerCache = buildMarkerCache();
+  try {
+    pins.forEach(pin => {
+      if (_markerCache.hiddenIds.has(pin.id)) return; // 縮小グループの非代表ピンは非表示
+      markers[pin.id] = createMarker(pin);
+    });
+  } finally {
+    _markerCache = null;
+  }
   drawGroupCircles();
 }
 
@@ -632,6 +670,41 @@ function toggleHelp() {
   const modal = document.getElementById('help-modal');
   modal.classList.toggle('show');
 }
+
+// --- ツールバーのドロップアップメニュー（✏️編集 / ⚙️その他） ---
+function toggleToolbarMenu(name) {
+  const menu = document.getElementById('menu-' + name);
+  const btn = document.getElementById('btn-menu-' + name);
+  if (!menu || !btn) return;
+  const willShow = !menu.classList.contains('show');
+  closeToolbarMenus();
+  if (!willShow) return;
+  menu.classList.add('show');
+  btn.classList.add('active');
+  // トリガーの真上に開く（ツールバーが画面下端のため）。右端はみ出しは左へ寄せる
+  const r = btn.getBoundingClientRect();
+  menu.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+  menu.style.left = r.left + 'px';
+  const mw = menu.offsetWidth;
+  if (r.left + mw > window.innerWidth - 8) {
+    menu.style.left = Math.max(8, window.innerWidth - mw - 8) + 'px';
+  }
+}
+
+function closeToolbarMenus() {
+  document.querySelectorAll('.toolbar-menu.show').forEach(m => m.classList.remove('show'));
+  ['btn-menu-edit', 'btn-menu-more'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.classList.remove('active');
+  });
+}
+
+// メニュー項目を選んだら閉じる／外側タップで閉じる（スライダー操作では閉じない）
+document.addEventListener('click', function (e) {
+  if (e.target.closest('#btn-menu-edit') || e.target.closest('#btn-menu-more')) return;
+  const inMenu = e.target.closest('.toolbar-menu');
+  if (!inMenu || e.target.closest('button')) closeToolbarMenus();
+});
 
 // --- ピン一覧パネル ---
 // pinListOpen は先頭で定義済み
@@ -798,10 +871,9 @@ function checkMissingNumbers() {
 
   html += '</div>';
 
-  // モーダル表示
-  const overlay = document.getElementById('help-modal');
-  document.getElementById('help-content').innerHTML = html;
-  document.querySelector('#help-modal h3').textContent = '';
+  // 専用の結果モーダルに表示（ヘルプモーダルは触らない）
+  const overlay = document.getElementById('result-modal');
+  document.getElementById('result-content').innerHTML = html;
   overlay.classList.add('show');
 }
 
@@ -813,7 +885,7 @@ function focusBetween(prevId, nextId) {
     const lat = p1 ? (p1.lat + p2.lat) / 2 : p2.lat;
     const lng = p1 ? (p1.lng + p2.lng) / 2 : p2.lng;
     map.setView([lat, lng], 19);
-    document.getElementById('help-modal').classList.remove('show');
+    document.getElementById('result-modal').classList.remove('show');
   }
 }
 
@@ -834,7 +906,7 @@ function syncEndpointsButton() {
 
 // --- モバイル/PC共通: Escキー & 背景タップでモーダルを閉じる ---
 (function () {
-  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal'];
+  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal', 'result-modal'];
   overlayIds.forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
@@ -843,13 +915,14 @@ function syncEndpointsButton() {
       if (e.target === el) el.classList.remove('show');
     });
   });
-  // Escキーで開いているモーダルを閉じる（物理キーボード接続時）
+  // Escキーで開いているモーダル・ツールバーメニューを閉じる（物理キーボード接続時）
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     overlayIds.forEach(function (id) {
       var el = document.getElementById(id);
       if (el && el.classList.contains('show')) el.classList.remove('show');
     });
+    if (typeof closeToolbarMenus === 'function') closeToolbarMenus();
   });
 })();
 

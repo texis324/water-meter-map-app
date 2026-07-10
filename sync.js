@@ -29,7 +29,6 @@
   function localMtime() { return parseInt(localStorage.getItem('waterMeterLocalMtime') || '0', 10) || 0; }
   function setLocalMtime(t) { localStorage.setItem('waterMeterLocalMtime', String(t)); }
   function autoSyncOn() { return localStorage.getItem('waterMeterAutoSync') !== 'off'; } // 既定ON
-  function isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
   // 読み込んだエリアを記憶し、保存(push)も同じエリアへ書き戻す(名前自動導出のズレ防止)
   function loadedArea() { return localStorage.getItem('waterMeterCurrentArea') || ''; }
@@ -105,28 +104,10 @@
   function applyBlob(data, clientTime) {
     applyingRemote = true;
     try {
-      pins.forEach(function (p) { if (markers[p.id]) map.removeLayer(markers[p.id]); });
-      pins = []; markers = {};
-      if (typeof routeLine !== 'undefined' && routeLine) { map.removeLayer(routeLine); routeLine = null; }
-      nextId = data.nextId || 1;
-      savedTraces = data.savedTraces || [];
-      pinGroups = data.pinGroups || [];
-      if (typeof redrawSavedTraces === 'function') redrawSavedTraces();
-      _bulkLoading = true;
-      (data.pins || []).forEach(function (p) { addPin(p.lat, p.lng, p.label, p.memo, p.id, Object.assign({}, p)); });
-      _bulkLoading = false;
-      if (pins.length > 0) nextId = Math.max(nextId, Math.max.apply(null, pins.map(function (p) { return p.id || 0; }))) + 1;
-      if (typeof warnIfDuplicates === 'function') warnIfDuplicates();
-      if (data.meta && data.meta.snapshotDate && typeof currentSnapshotDate !== 'undefined') {
-        currentSnapshotDate = data.meta.snapshotDate;
-        if (typeof showStaleSnapshotWarning === 'function') showStaleSnapshotWarning(currentSnapshotDate);
-      }
+      // 適用処理は共通コア(storage.jsのapplyDataset)に委譲。保存はpush予約の無い_origSaveで行う
+      applyDataset(data, { save: 'none' });
       _origSave(); // ローカル保存(applyingRemote中なのでpushは予約されない)
       setLocalMtime(clientTime || Date.now());
-      if (pins.length > 0) {
-        var group = L.featureGroup(Object.values(markers));
-        map.fitBounds(group.getBounds().pad(0.1));
-      }
     } finally {
       applyingRemote = false;
     }
@@ -309,6 +290,8 @@
     var _origImport = window.handleImport;
     window.handleImport = function () { setLoadedArea(''); return _origImport.apply(this, arguments); };
   }
+  // D&D読込(storage.jsのhandleDrop)にも同じ解除を通すための公開フック
+  window.syncClearLoadedArea = function () { setLoadedArea(''); };
   if (!enabled) {
     console.warn('[sync] Firebase SDK 未ロード — クラウド同期は無効（ローカルのみ動作）');
     setSyncStatus('out');

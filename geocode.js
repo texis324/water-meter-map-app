@@ -10,9 +10,20 @@ function normalizeBanchi(str) {
             .replace(/\s+/g, '');
 }
 
+// 現在のピン群の最頻出町名から番地抽出用regexを作る
+// （旧実装は「尾上町」ハードコードで、他エリアでは照合が常に0件だった）
+function banchiRegex() {
+  const town = (typeof detectAreaName === 'function') ? detectAreaName() : '';
+  if (!town) return null;
+  const esc = town.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(esc + '([０-９0-9－\\-ー−]+)');
+}
+
 // ラベルから番地部分を抽出（例: "3. 伊勢市尾上町４－６ 大西 基" → "4-6"）
-function extractBanchi(label) {
-  const m = label.match(/尾上町([０-９0-9－\-ー−]+)/);
+function extractBanchi(label, re) {
+  const r = re || banchiRegex();
+  if (!r) return '';
+  const m = label.match(r);
   return m ? normalizeBanchi(m[1]) : '';
 }
 
@@ -33,14 +44,15 @@ function reverseGeocode(lat, lng) {
     if (myController !== reverseGeocodeAbortController) return;
     if (data.status === 'OK' && data.results.length > 0) {
       const addr = data.results[0].formatted_address.replace(/^日本、〒[\d－\-]+\s*/, '');
-      // 住所から番地を抽出
-      const banchiMatch = addr.match(/尾上町([0-9０-９－\-ー−]+)/);
+      // 住所から番地を抽出（現エリアの町名で動的マッチ）
+      const re = banchiRegex();
+      const banchiMatch = re ? addr.match(re) : null;
       const clickedBanchi = banchiMatch ? normalizeBanchi(banchiMatch[1]) : '';
 
       // 一致するピンを検索
       let matched = [];
       if (clickedBanchi) {
-        matched = pins.filter(p => extractBanchi(p.label || '') === clickedBanchi);
+        matched = pins.filter(p => extractBanchi(p.label || '', re) === clickedBanchi);
       }
 
       // 一致なしの場合、重複ピンの中から近い順に候補表示
@@ -167,7 +179,8 @@ function moveSinglePin(pinId, lat, lng) {
 
 // 一致ピンをクリック位置に移動
 function moveMatchedPins(lat, lng, banchi) {
-  const matched = pins.filter(p => extractBanchi(p.label || '') === banchi);
+  const re = banchiRegex();
+  const matched = pins.filter(p => extractBanchi(p.label || '', re) === banchi);
   if (matched.length === 0) return;
   pushUndo();
   matched.forEach(p => {

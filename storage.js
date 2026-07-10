@@ -32,17 +32,48 @@ function showStaleSnapshotWarning(dateStr) {
   }
 }
 
-function hideStaleSnapshotWarning() {
-  const banner = document.getElementById('stale-snapshot-banner');
-  if (banner) banner.classList.remove('show');
-}
-
 // パース済みデータからスナップショット日付を決定 (meta優先、無ければファイル名)
 function resolveSnapshotDate(parsedData, filename) {
   if (parsedData && parsedData.meta && parsedData.meta.snapshotDate) {
     return parsedData.meta.snapshotDate;
   }
   return extractDateFromFilename(filename);
+}
+
+// --- データ一式の適用（共通コア） ---
+// D&D読込・📥読込みボタン・localStorage復元・クラウドpullの4経路が全てここを通る。
+// （以前は4箇所にほぼ同文のコピペがあり、挙動が発散してエリア誤push等の温床だった）
+// opts.filename: snapshotDate抽出のフォールバック元ファイル名
+// opts.save: 'none'で適用後に保存しない（既定は saveToStorage 実行）
+// opts.fit: false で全ピンズームをしない（既定は実行）
+function applyDataset(data, opts) {
+  opts = opts || {};
+  pins.forEach(p => { if (markers[p.id]) map.removeLayer(markers[p.id]); });
+  pins = []; markers = {};
+  nextId = data.nextId || 1;
+  savedTraces = data.savedTraces || [];
+  pinGroups = data.pinGroups || [];
+  redrawSavedTraces();
+  _bulkLoading = true;
+  try {
+    (data.pins || []).forEach(p => addPin(p.lat, p.lng, p.label, p.memo, p.id, { ...p }));
+  } finally {
+    _bulkLoading = false;
+  }
+  // nextId セーフティ再計算: data.nextId が破損していても確実に max+1
+  if (pins.length > 0) {
+    nextId = Math.max(nextId, ...pins.map(p => p.id || 0)) + 1;
+  }
+  // マーカーは一括構築（addPinは_bulkLoading中スキップ・重複バッジも全件正しく付く）
+  refreshAllMarkers();
+  updatePinCount();
+  warnIfDuplicates();
+  currentSnapshotDate = resolveSnapshotDate(data, opts.filename);
+  showStaleSnapshotWarning(currentSnapshotDate);
+  if (opts.save !== 'none') saveToStorage();
+  if (opts.fit !== false && pins.length > 0) {
+    map.fitBounds(L.featureGroup(Object.values(markers)).getBounds().pad(0.1));
+  }
 }
 
 // --- ドラッグ&ドロップ JSON読込 ---
@@ -61,29 +92,9 @@ function resolveSnapshotDate(parsedData, filename) {
       try {
         const data = JSON.parse(ev.target.result);
         if (!data.pins) { showToast('ピンデータが見つかりません'); return; }
-        pins.forEach(p => { if (markers[p.id]) map.removeLayer(markers[p.id]); });
-        pins = []; markers = {};
-        if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-        nextId = data.nextId || 1;
-        savedTraces = data.savedTraces || [];
-        pinGroups = data.pinGroups || [];
-        redrawSavedTraces();
-        _bulkLoading = true;
-        data.pins.forEach(p => addPin(p.lat, p.lng, p.label, p.memo, p.id, { ...p }));
-        _bulkLoading = false;
-        // nextId セーフティ再計算: data.nextId が破損していても確実に max+1
-        if (pins.length > 0) {
-          nextId = Math.max(nextId, ...pins.map(p => p.id || 0)) + 1;
-        }
-        warnIfDuplicates();
-        // スナップショット日付の解決と警告表示
-        currentSnapshotDate = resolveSnapshotDate(data, file.name);
-        showStaleSnapshotWarning(currentSnapshotDate);
-        saveToStorage();
-        if (pins.length > 0) {
-          const group = L.featureGroup(Object.values(markers));
-          map.fitBounds(group.getBounds().pad(0.1));
-        }
+        // 読込みボタン(handleImport)と同じ扱い: 「読み込み中エリア」を解除して旧エリアへの誤pushを防ぐ
+        if (typeof window.syncClearLoadedArea === 'function') window.syncClearLoadedArea();
+        applyDataset(data, { filename: file.name });
         showToast(`📂 ${file.name} — ${pins.length}件を読み込みました`);
       } catch(err) {
         showToast('読み込みエラー: ファイル形式を確認してください');
@@ -120,41 +131,11 @@ function loadFromStorage() {
   try {
     const parsed = JSON.parse(data);
     console.log(`[LOAD] localStorage読込: ${parsed.pins ? parsed.pins.length : 0}件のピン (${(data.length/1024).toFixed(1)}KB)`);
-    nextId = parsed.nextId || 1;
-    if (parsed.savedTraces) {
-      savedTraces = parsed.savedTraces;
-      redrawSavedTraces();
-    }
-    if (parsed.pinGroups) {
-      pinGroups = parsed.pinGroups;
-    }
-    if (parsed.pins && parsed.pins.length > 0) {
-      _bulkLoading = true;
-      parsed.pins.forEach(p => addPin(p.lat, p.lng, p.label, p.memo, p.id, { ...p }));
-      _bulkLoading = false;
-      // nextId セーフティ再計算
-      if (pins.length > 0) {
-        nextId = Math.max(nextId, ...pins.map(p => p.id || 0)) + 1;
-      }
-      warnIfDuplicates();
-      // スナップショット日付の復元と警告
-      if (parsed.meta && parsed.meta.snapshotDate) {
-        currentSnapshotDate = parsed.meta.snapshotDate;
-        showStaleSnapshotWarning(currentSnapshotDate);
-      }
-      // 全ピンが見えるようにズーム
-      const group = L.featureGroup(Object.values(markers));
-      map.fitBounds(group.getBounds().pad(0.1));
-      showToast(`${pins.length}件のピンを復元しました`);
-    }
+    applyDataset(parsed, { save: 'none' });
+    if (pins.length > 0) showToast(`${pins.length}件のピンを復元しました`);
   } catch(e) {
     console.error('データ復元エラー:', e);
   }
-}
-
-function saveData() {
-  saveToStorage();
-  showToast(`${pins.length}件を保存しました`);
 }
 
 function detectAreaName() {
@@ -196,36 +177,8 @@ function handleImport(event) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      // 既存データをクリア
-      pins.forEach(p => {
-        if (markers[p.id]) map.removeLayer(markers[p.id]);
-      });
-      pins = [];
-      markers = {};
-      if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-
-      nextId = data.nextId || 1;
-      // なぞりルート・グループも復元
-      savedTraces = data.savedTraces || [];
-      pinGroups = data.pinGroups || [];
-      redrawSavedTraces();
-      _bulkLoading = true;
-      data.pins.forEach(p => addPin(p.lat, p.lng, p.label, p.memo, p.id, { ...p }));
-      _bulkLoading = false;
-      // nextId セーフティ再計算
-      if (pins.length > 0) {
-        nextId = Math.max(nextId, ...pins.map(p => p.id || 0)) + 1;
-      }
-      warnIfDuplicates();
-      // スナップショット日付の解決と警告表示
-      currentSnapshotDate = resolveSnapshotDate(data, file.name);
-      showStaleSnapshotWarning(currentSnapshotDate);
-      saveToStorage();
-
-      if (pins.length > 0) {
-        const group = L.featureGroup(Object.values(markers));
-        map.fitBounds(group.getBounds().pad(0.1));
-      }
+      if (!data.pins) { showToast('ピンデータが見つかりません'); return; }
+      applyDataset(data, { filename: file.name });
       showToast(`${pins.length}件を読み込みました`);
     } catch(err) {
       showToast('読み込みエラー: ファイル形式を確認してください');
