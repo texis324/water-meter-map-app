@@ -379,6 +379,20 @@ body.dark .menu-slider { color: #aaa; }
 }
 #lasso-delete-banner.show { display: block; }
 
+#multi-move-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #00897B;
+  color: white;
+  text-align: center;
+  padding: 8px;
+  z-index: 1500;
+}
+#multi-move-banner.show { display: block; }
+
 /* 古いスナップショット警告バナー */
 #stale-snapshot-banner {
   display: none;
@@ -399,7 +413,7 @@ body.dark .menu-slider { color: #aaa; }
 /* 上端固定バナー: ノッチ/Dynamic Island/ステータスバー裏に潜らせない */
 #trace-banner, #trace-edit-banner, #stamp-banner, #reorder-banner,
 #group-banner, #trace-reorder-banner, #concat-banner,
-#lasso-delete-banner, #stale-snapshot-banner {
+#lasso-delete-banner, #multi-move-banner, #stale-snapshot-banner {
   padding-top: calc(8px + env(safe-area-inset-top));
 }
 
@@ -611,7 +625,7 @@ body.dark .pin-list-coords { color: #777; }
   }
 
   /* バナー類の文字を少し小さく */
-  #trace-banner, #trace-edit-banner, #reorder-banner, #group-banner { font-size: 12px; }
+  #trace-banner, #trace-edit-banner, #reorder-banner, #group-banner, #multi-move-banner { font-size: 12px; }
 
   /* ピン一覧パネル: 画面を覆いすぎず、上下のノッチ/ツールバー/ホームバーに被らない */
   #pin-list-panel {

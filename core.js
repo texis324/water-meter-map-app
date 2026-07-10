@@ -114,6 +114,8 @@ function exitAllOtherModes(exceptName) {
     { name: 'trace',        flag: () => typeof traceMode !== 'undefined' && traceMode,                 exit: () => finishTrace() },
     { name: 'traceEdit',    flag: () => typeof traceEditMode !== 'undefined' && traceEditMode,         exit: () => cancelTraceEdit() },
     { name: 'lassoDelete',  flag: () => typeof lassoDeleteMode !== 'undefined' && lassoDeleteMode,     exit: () => cancelLassoDeleteMode() },
+    // multiMoveの移動はdragendごとに保存済みなので、モード切替では確定終了(finish)する（勝手にundoしない）
+    { name: 'multiMove',    flag: () => typeof multiMoveMode !== 'undefined' && multiMoveMode,         exit: () => finishMultiMove() },
   ];
   modes.forEach(m => {
     if (m.name === exceptName) return;
@@ -232,7 +234,7 @@ map.on('contextmenu', function(e) {
       refreshReorderMarkers();
       showToast('ピンを追加しました');
     }
-  } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode) {
+  } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode && !multiMoveMode) {
     // 通常時（ピン追加/閲覧モード）: 指定番号のピンをこの地点へパッと置く
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
@@ -427,6 +429,10 @@ function createMarker(pin) {
       handleGroupTap(pin.id);
       return;
     }
+    if (multiMoveMode) {
+      handleMultiMoveTap(pin.id);
+      return;
+    }
     if (clickTimer) {
       // ダブルクリック: 同一座標のマーカーを全消去
       clearTimeout(clickTimer);
@@ -453,7 +459,7 @@ function createMarker(pin) {
         if (!pins.includes(pin)) return;
         // モード切替後にタイマーが発火して誤削除するのを防ぐ
         if (stampMode || concatMode || reorderMode || reorderSwapMode || groupMode ||
-            traceMode || traceEditMode || traceReorderMode || lassoDeleteMode) return;
+            traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
         delete markers[pin.id];
