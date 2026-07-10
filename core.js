@@ -250,6 +250,7 @@ let quickPlaceLatLng = null;
 function openQuickPlace(latlng) {
   quickPlaceLatLng = latlng;
   document.getElementById('place-modal').classList.add('show');
+  document.getElementById('place-num-end').value = ''; // 範囲は毎回明示させる(単発が既定)
   const input = document.getElementById('place-num');
   setTimeout(() => { input.focus(); input.select(); }, 50);
 }
@@ -263,6 +264,13 @@ function executeQuickPlace() {
   if (!quickPlaceLatLng) return;
   const num = parseInt(document.getElementById('place-num').value);
   if (!num || num < 1) { showToast('番号を入力してください'); return; }
+  const endRaw = document.getElementById('place-num-end').value.trim();
+  const endNum = endRaw ? parseInt(endRaw) : null;
+  if (endNum && endNum >= 1 && endNum !== num) {
+    executeQuickPlaceRange(Math.min(num, endNum), Math.max(num, endNum));
+    return;
+  }
+  // --- 単発: 移動 or 新規作成（従来動作） ---
   // 参照ピンへの磁石スナップ（ON時のみ吸着）
   let lat = quickPlaceLatLng.lat, lng = quickPlaceLatLng.lng;
   if (typeof snapToReference === 'function') {
@@ -283,6 +291,31 @@ function executeQuickPlace() {
     showToast(`📌 #${num} を新規配置しました`);
   }
   updatePinCount();
+  closeQuickPlace();
+}
+
+// --- 範囲召喚: start〜end番の実在ピンを、クリック地点起点の小格子(約5m間隔・5本/行)へ番号順に配置 ---
+// 存在しない番号はスキップ（勝手に新規ピンを量産しない）。枝番(12.5等)も範囲内なら拾う。
+// 同一点に重ねると後で個別に掴めないため、少しずらして並べる=召喚後すぐ配れる
+function executeQuickPlaceRange(start, end) {
+  const targets = pins
+    .filter(p => { const n = getLabelNum(p.label); return n !== null && n >= start && n <= end; })
+    .sort((a, b) => getLabelNum(a.label) - getLabelNum(b.label));
+  if (!targets.length) { showToast(`#${start}〜#${end} のピンが見つかりません`); return; }
+  if (targets.length > 30 && !confirm(`${targets.length}件をここへ一気に移動します。よろしいですか？`)) return;
+  const { lat, lng } = quickPlaceLatLng;
+  const dLat = 0.000045, dLng = 0.000055, perRow = 5; // 約5m間隔の格子
+  pushUndo();
+  targets.forEach((p, i) => {
+    p.lat = lat - Math.floor(i / perRow) * dLat;
+    p.lng = lng + (i % perRow) * dLng;
+  });
+  refreshAllMarkers();
+  saveToStorage();
+  updatePinCount();
+  const requested = end - start + 1;
+  const skipped = requested - targets.filter(p => Number.isInteger(getLabelNum(p.label))).length;
+  showToast(`📦 #${start}〜#${end}: ${targets.length}件を召喚しました${skipped > 0 ? `（番号なし${skipped}件はスキップ）` : ''}`);
   closeQuickPlace();
 }
 

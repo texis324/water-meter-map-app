@@ -174,7 +174,7 @@
           <b>ダブルクリック</b>: 同一座標ピン全消去 / グループ展開・縮小<br>
           <b>右クリック</b>: ピンの詳細編集（ラベル・メモ・色）<br>
           <b>地図ダブルクリック</b>: Googleストリートビューを開く<br>
-          <b>地図右クリック（スマホ長押し）</b>: 📌指定番号のピンをそこへパッと移動（無ければ新規作成）<br>
+          <b>地図右クリック（スマホ長押し）</b>: 📌指定番号のピンをそこへパッと移動（無ければ新規作成）。「12〜25」のように範囲指定すると番号帯を一気に召喚<br>
           <b>ドラッグ</b>: ピンの位置を移動
         </div>
       </div>
@@ -260,11 +260,13 @@
 <div class="modal-overlay" id="place-modal">
   <div class="modal" style="max-width:300px;">
     <h3 style="margin-bottom:8px;">📌 番号をここに置く</h3>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="number" id="place-num" min="1" value="1" style="flex:1;font-size:18px;text-align:center;padding:8px;" onkeydown="if(event.key==='Enter'){executeQuickPlace();event.preventDefault();}">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="number" id="place-num" min="1" value="1" style="flex:1;min-width:0;font-size:18px;text-align:center;padding:8px;" onkeydown="if(event.key==='Enter'){executeQuickPlace();event.preventDefault();}">
+      <span style="font-size:14px;color:#666;">〜</span>
+      <input type="number" id="place-num-end" min="1" placeholder="空=1件" style="flex:1;min-width:0;font-size:16px;text-align:center;padding:8px;" onkeydown="if(event.key==='Enter'){executeQuickPlace();event.preventDefault();}">
       <span style="font-size:14px;color:#666;">番</span>
     </div>
-    <div style="font-size:11px;color:#999;margin-top:6px;line-height:1.5;">その番号のピンをこの地点へ移動します（無ければ新規作成・スナップON時は参照ピンへ吸着）</div>
+    <div style="font-size:11px;color:#999;margin-top:6px;line-height:1.5;">1件: 移動（無ければ新規作成・スナップ吸着あり）。<br>範囲指定: その番号帯のピンを番号順の小さな格子でここへ一気に召喚</div>
     <div class="modal-buttons">
       <button class="btn-cancel" onclick="closeQuickPlace()">キャンセル</button>
       <button class="btn-save" onclick="executeQuickPlace()">📌 置く</button>
