@@ -207,7 +207,7 @@ map.on('click', function(e) {
 
 // reverseGeocode, callPinHere, moveSinglePin, moveMatchedPins → geocode.js
 
-// 地図右クリック: 並べ替え中・なぞり中にピン追加
+// 地図右クリック(スマホは長押し): 並べ替え中・なぞり中はピン追加、通常時は📌番号クイック配置
 map.on('contextmenu', function(e) {
   if (reorderMode || traceReorderMode) {
     L.DomEvent.stopPropagation(e);
@@ -232,8 +232,57 @@ map.on('contextmenu', function(e) {
       refreshReorderMarkers();
       showToast('ピンを追加しました');
     }
+  } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode) {
+    // 通常時（ピン追加/閲覧モード）: 指定番号のピンをこの地点へパッと置く
+    L.DomEvent.stopPropagation(e);
+    L.DomEvent.preventDefault(e);
+    openQuickPlace(e.latlng);
   }
 });
+
+// --- 📌 番号クイック配置 ---
+// 「1番をここにパッと置きたい」用。地図の右クリック/長押し→番号入力→その番号のピンを
+// タップ地点へ移動（存在しない番号なら新規作成）。呼出し(callPinHere)と違い逆ジオコ通信を待たない
+let quickPlaceLatLng = null;
+
+function openQuickPlace(latlng) {
+  quickPlaceLatLng = latlng;
+  document.getElementById('place-modal').classList.add('show');
+  const input = document.getElementById('place-num');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function closeQuickPlace() {
+  document.getElementById('place-modal').classList.remove('show');
+  quickPlaceLatLng = null;
+}
+
+function executeQuickPlace() {
+  if (!quickPlaceLatLng) return;
+  const num = parseInt(document.getElementById('place-num').value);
+  if (!num || num < 1) { showToast('番号を入力してください'); return; }
+  // 参照ピンへの磁石スナップ（ON時のみ吸着）
+  let lat = quickPlaceLatLng.lat, lng = quickPlaceLatLng.lng;
+  if (typeof snapToReference === 'function') {
+    const s = snapToReference(lat, lng);
+    lat = s.lat; lng = s.lng;
+  }
+  const pin = findPinByNum(num);
+  pushUndo();
+  if (pin) {
+    pin.lat = lat;
+    pin.lng = lng;
+    refreshAllMarkers();
+    saveToStorage();
+    const name = stripLabelNum(pin.label).slice(0, 14);
+    showToast(`📌 #${num} ${name} をここに移動しました`);
+  } else {
+    addPin(lat, lng, `${num}. 新規ピン`, '');
+    showToast(`📌 #${num} を新規配置しました`);
+  }
+  updatePinCount();
+  closeQuickPlace();
+}
 
 // 地図ダブルクリック: Googleストリートビューを開く
 map.on('dblclick', function(e) {
@@ -924,7 +973,7 @@ function syncEndpointsButton() {
 
 // --- モバイル/PC共通: Escキー & 背景タップでモーダルを閉じる ---
 (function () {
-  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal', 'result-modal'];
+  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal'];
   overlayIds.forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;
