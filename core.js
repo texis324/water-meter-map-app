@@ -31,6 +31,24 @@ function stripLabelNum(label) {
   return (label || '').replace(LABEL_NUM_RE, '');
 }
 
+// 番号配列を連続範囲つき文字列へ圧縮（例 [1,2,3,5,7,8] → 「1〜3, 5, 7〜8」）。枝番は単独表記
+function formatNumRanges(nums) {
+  const sorted = [...nums].sort((a, b) => a - b);
+  const parts = [];
+  let start = null, prev = null;
+  const flush = () => {
+    if (start === null) return;
+    parts.push(start === prev ? String(start) : `${start}〜${prev}`);
+  };
+  for (const n of sorted) {
+    if (prev !== null && Number.isInteger(prev) && n === prev + 1) { prev = n; continue; }
+    flush();
+    start = prev = n;
+  }
+  flush();
+  return parts.join(', ');
+}
+
 // ラベルへ順路番号を書き込む（既存番号は置換・「N. 本文」形式に正規化）
 function setLabelNum(label, num) {
   return `${num}. ${stripLabelNum(label)}`;
@@ -421,6 +439,11 @@ function createMarker(pin) {
     let tooltipHtml = `<b>#${displayNum} ${escapeHtml(labelText)}</b>`;
     if (pin.memo) tooltipHtml += `<br><span style="color:#666">${escapeHtml(pin.memo)}</span>`;
     if (dupeCount > 1) {
+      // 重なってるピンの順路番号を範囲表示（マンション等の団子で「何番〜何番か」を即読めるように）
+      const stackNums = sameLoc.map(p => getLabelNum(p.label)).filter(n => n !== null);
+      if (stackNums.length > 1) {
+        tooltipHtml += `<br><span style="color:#1976d2;font-weight:bold">🔢 ${formatNumRanges(stackNums)}</span>`;
+      }
       // 同じ座標のピンのラベルから番地部分を抽出して比較
       const getBanchi = lbl => { const m = lbl.match(/[０-９0-9－\-]+/g); return m ? m.join('') : ''; };
       const myBanchi = getBanchi(labelText);
