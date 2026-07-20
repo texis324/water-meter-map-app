@@ -709,9 +709,12 @@ function deletePin() {
 }
 
 // --- モード切替 ---
-function toggleMode() {
-  pinMode = !pinMode;
+// 表示は常に updateModeBtn() で pinMode から導出する。
+// 各モードが pinMode=false にした後ボタンを再表示する際、表示が「追加」のまま
+// 実態と食い違う同期漏れがあった（モード終了側は必ず updateModeBtn() を呼ぶこと）
+function updateModeBtn() {
   const btn = document.getElementById('btn-mode');
+  if (!btn) return;
   if (pinMode) {
     btn.textContent = '📍 ピン追加モード';
     btn.classList.add('active');
@@ -719,6 +722,11 @@ function toggleMode() {
     btn.textContent = '🔒 閲覧モード';
     btn.classList.remove('active');
   }
+}
+
+function toggleMode() {
+  pinMode = !pinMode;
+  updateModeBtn();
 }
 
 // --- マーカー全更新 ---

@@ -182,5 +182,6 @@ function exitLassoDeleteMode() {
   document.getElementById('btn-lasso-delete').classList.remove('active');
   document.getElementById('btn-lasso-delete').textContent = '🗑️ 範囲削除';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('lasso-delete-banner').classList.remove('show');
 }

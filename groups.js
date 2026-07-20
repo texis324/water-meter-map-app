@@ -196,6 +196,7 @@ function exitGroupMode() {
   document.getElementById('btn-group').classList.remove('active');
   document.getElementById('btn-group').textContent = '📦 グループ';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('group-banner').classList.remove('show');
 }
 

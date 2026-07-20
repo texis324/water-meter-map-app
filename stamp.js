@@ -23,6 +23,7 @@ function finishStampMode() {
   stampMode = false;
   document.getElementById('btn-stamp').classList.remove('active');
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('stamp-banner').classList.remove('show');
   refreshAllMarkers();
   showToast('スタンプモード終了');

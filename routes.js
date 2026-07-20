@@ -273,6 +273,7 @@ function finishTrace() {
   document.getElementById('btn-trace').classList.remove('active');
   document.getElementById('btn-trace').textContent = '✏️ ルート線';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('trace-banner').classList.remove('show');
 }
 
@@ -464,6 +465,7 @@ function cleanupTraceEdit() {
   traceEditOriginal = null;
 
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('btn-trace').style.display = '';
   document.getElementById('trace-edit-banner').classList.remove('show');
 }

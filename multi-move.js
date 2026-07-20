@@ -214,5 +214,6 @@ function exitMultiMove() {
   document.getElementById('btn-multi-move').classList.remove('active');
   document.getElementById('btn-multi-move').textContent = '🖐 まとめて移動';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('multi-move-banner').classList.remove('show');
 }

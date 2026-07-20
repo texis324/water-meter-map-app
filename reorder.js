@@ -223,6 +223,7 @@ function finishReorder() {
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('reorder-banner').classList.remove('show');
 
   relabelPins();
@@ -241,6 +242,7 @@ function cancelReorder() {
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('reorder-banner').classList.remove('show');
 
   refreshAllMarkers();
@@ -471,6 +473,7 @@ function cancelTraceReorder() {
   document.getElementById('btn-trace-reorder').classList.remove('active');
   document.getElementById('btn-trace-reorder').textContent = '👆 なぞり順';
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('trace-reorder-banner').classList.remove('show');
 }
 
@@ -567,6 +570,7 @@ function cancelConcat() {
   concatFirst = null;
   document.getElementById('btn-concat').classList.remove('active');
   document.getElementById('btn-mode').style.display = '';
+  updateModeBtn();
   document.getElementById('concat-banner').classList.remove('show');
   refreshAllMarkers();
 }
