@@ -16,6 +16,7 @@ let reorderedPins = [];    // 並べ替え済みのピン（タップ順）
 let remainingPins = [];    // まだタップされていないピン
 let reorderAnchorSet = false; // 開始位置が確定済みか
 let reorderSwapMode = false;  // 入替モード（番号指定不要）
+let reorderTakeHistory = []; // 各タップで取り込んだ本数（🏢まとめ取りのUndo用）
 
 function toggleReorderMode() {
   if (reorderMode) {
@@ -33,6 +34,7 @@ function toggleReorderMode() {
   reorderedPins = [];
   remainingPins = [...pins];
   reorderAnchorSet = false;
+  reorderTakeHistory = [];
 
   document.getElementById('btn-reorder').classList.add('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え中...';
@@ -63,9 +65,24 @@ function handleReorderTap(pinId) {
     showToast('そのピンは並べ替え済みです');
     return;
   }
-  // remaining → reordered に移動
-  const pin = remainingPins.splice(idx, 1)[0];
-  reorderedPins.push(pin);
+  const pin = remainingPins[idx];
+  // 🏢まとめ取り: 同一座標（=重複バッジが出てる団子）の未処理ピンをワンタップで全部取り込む。
+  // 建物内の相対順は現在の並び順を維持。入替モードは位置交換の意味が崩れるので対象外
+  const stack = reorderSwapMode ? [pin]
+    : remainingPins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
+  if (stack.length > 1) {
+    stack.sort((a, b) => pins.indexOf(a) - pins.indexOf(b));
+    for (const s of stack) {
+      remainingPins.splice(remainingPins.indexOf(s), 1);
+      reorderedPins.push(s);
+    }
+    reorderTakeHistory.push(stack.length);
+    showToast(`🏢 同じ場所の${stack.length}本をまとめて取り込み`);
+  } else {
+    remainingPins.splice(remainingPins.indexOf(pin), 1);
+    reorderedPins.push(pin);
+    reorderTakeHistory.push(1);
+  }
   updateReorderCount();
   refreshReorderMarkers();
 }
@@ -106,12 +123,16 @@ function refreshReorderMarkers() {
     const marker = L.marker([pin.lat, pin.lng], { icon, draggable: true }).addTo(map);
     marker.on('click', function(e) {
       L.DomEvent.stopPropagation(e);
-      if (reorderedPins[reorderedPins.length - 1]?.id === pin.id) {
-        reorderedPins.pop();
-        remainingPins.unshift(pin);
+      // 最後に取り込んだピン（🏢まとめ取りならその建物のどれか）をタップで、直前のタップ分を丸ごと戻す
+      const lastN = reorderTakeHistory[reorderTakeHistory.length - 1] || 1;
+      const lastTake = reorderedPins.slice(-lastN);
+      if (lastTake.some(p => p.id === pin.id)) {
+        reorderTakeHistory.pop();
+        const back = reorderedPins.splice(reorderedPins.length - lastN, lastN);
+        remainingPins.unshift(...back);
         updateReorderCount();
         refreshReorderMarkers();
-        showToast('1つ戻しました');
+        showToast(lastN > 1 ? `🏢 ${lastN}本まとめて戻しました` : '1つ戻しました');
       }
     });
     marker.on('dragend', function(e) {
@@ -198,6 +219,7 @@ function finishReorder() {
   reorderedPins = [];
   remainingPins = [];
   reorderSwapMode = false;
+  reorderTakeHistory = [];
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
@@ -215,6 +237,7 @@ function cancelReorder() {
   remainingPins = [];
   reorderAnchorSet = false;
   reorderSwapMode = false;
+  reorderTakeHistory = [];
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
