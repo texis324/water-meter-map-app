@@ -58,7 +58,8 @@ async function doGeoSearch() {
 
 function addPinAtSearch(lat, lng) {
   const label = document.getElementById('search-input').value.trim();
-  addPin(lat, lng, label, '', null, { color: '#1976D2' });
+  // 色は空＝既定の青（明示指定すると凡例・始点ハイライトの「色なし」判定から外れる）
+  addPin(lat, lng, label, '', null, { color: '' });
   saveToStorage();
   showToast('ピンを追加: ' + label);
   if (searchResultMarker) { map.removeLayer(searchResultMarker); searchResultMarker = null; }

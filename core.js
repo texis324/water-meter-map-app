@@ -679,7 +679,10 @@ function savePin() {
   pin.label = document.getElementById('pin-label').value.trim();
   pin.memo = document.getElementById('pin-memo').value.trim();
   const selectedColor = document.getElementById('pin-color').value;
-  pin.color = (selectedColor && selectedColor !== '#1976D2') ? selectedColor : '';
+  // ★input[type=color]の値は仕様上つねに小文字で返る。大文字定数と厳密比較すると
+  //   永久に不一致＝「色なし(既定の青)」に戻せず #1976d2 が焼き付く（始点ハイライトも死ぬ）
+  const isDefaultColor = selectedColor.toLowerCase() === pinColorPresets[0].toLowerCase();
+  pin.color = (selectedColor && !isDefaultColor) ? selectedColor : '';
   pin.group = getGroupFromModal();
 
   // マーカー更新
