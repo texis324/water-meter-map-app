@@ -225,6 +225,13 @@ body.dark .menu-slider { color: #aaa; }
   background: #9E9E9E;
   opacity: 0.6;
 }
+/* 🔒保留ピン: 並べ替えても今の番号のまま動かさない。琥珀＋実線枠で「動かない」を強調 */
+.pin-icon.reorder-held {
+  background: #FFB300;
+  color: #3E2723;
+  opacity: 1;
+  border-color: #3E2723;
+}
 
 /* ルートなぞりモード中のバナー */
 #trace-banner {

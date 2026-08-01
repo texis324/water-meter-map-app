@@ -17,6 +17,37 @@ let remainingPins = [];    // まだタップされていないピン
 let reorderAnchorSet = false; // 開始位置が確定済みか
 let reorderSwapMode = false;  // 入替モード（番号指定不要）
 let reorderTakeHistory = []; // 各タップで取り込んだ本数（🏢まとめ取りのUndo用）
+// 🔒保留ピン: 「この番号は動かすな」と明示指定したピンのID。
+// 並べ替え後も元の位置(=今の番号)に固定され、取り込み対象からも外れる。
+// 並べ替えセッション限りの状態で、完了/取消でクリアする（ピンのデータには残さない）。
+let reorderHeldIds = new Set();
+
+function isPinHeld(pinId) {
+  return reorderHeldIds.has(pinId);
+}
+
+// 保留のトグル（右クリック / スマホ長押し）
+function toggleReorderHold(pinId) {
+  if (!reorderMode) return;
+  const pin = pins.find(p => p.id === pinId);
+  if (!pin) return;
+  const num = getLabelNum(pin.label) || (pins.indexOf(pin) + 1);
+  if (reorderHeldIds.has(pinId)) {
+    reorderHeldIds.delete(pinId);
+    showToast(`🔓 ${num}番の保留を解除`);
+  } else {
+    // 取り込み済みのピンを保留にしたい場合は、まず取り込みから外す
+    const i = reorderedPins.indexOf(pin);
+    if (i !== -1) {
+      showToast('取り込み済みです。先に戻して（Backspace）から保留にしてください');
+      return;
+    }
+    reorderHeldIds.add(pinId);
+    showToast(`🔒 ${num}番を保留（並べ替えても動きません）`);
+  }
+  updateReorderCount();
+  refreshReorderMarkers();
+}
 
 function toggleReorderMode() {
   if (reorderMode) {
@@ -35,6 +66,7 @@ function toggleReorderMode() {
   remainingPins = [...pins];
   reorderAnchorSet = false;
   reorderTakeHistory = [];
+  reorderHeldIds = new Set();
 
   document.getElementById('btn-reorder').classList.add('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え中...';
@@ -60,6 +92,12 @@ function handleReorderTap(pinId) {
     return;
   }
 
+  // 🔒保留ピンは取り込まない（右クリック/長押しで解除できる）
+  if (isPinHeld(pinId)) {
+    showToast('🔒 保留中のピンです（右クリック/長押しで解除）');
+    return;
+  }
+
   const idx = remainingPins.findIndex(p => p.id === pinId);
   if (idx === -1) {
     showToast('そのピンは並べ替え済みです');
@@ -67,9 +105,10 @@ function handleReorderTap(pinId) {
   }
   const pin = remainingPins[idx];
   // 🏢まとめ取り: 同一座標（=重複バッジが出てる団子）の未処理ピンをワンタップで全部取り込む。
-  // 建物内の相対順は現在の並び順を維持。入替モードは位置交換の意味が崩れるので対象外
+  // 建物内の相対順は現在の並び順を維持。入替モードは位置交換の意味が崩れるので対象外。
+  // 同じ建物の中に保留ピンが混じっていても、それだけは取り込まない。
   const stack = reorderSwapMode ? [pin]
-    : remainingPins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
+    : remainingPins.filter(p => p.lat === pin.lat && p.lng === pin.lng && !isPinHeld(p.id));
   if (stack.length > 1) {
     stack.sort((a, b) => pins.indexOf(a) - pins.indexOf(b));
     for (const s of stack) {
@@ -105,6 +144,10 @@ function updateReorderCount() {
   const instr = document.getElementById('reorder-instruction');
   if (instr) {
     instr.textContent = reorderAnchorSet ? 'ピンをタップして並べ替え' : '開始位置のピンをタップ';
+  }
+  const heldEl = document.getElementById('reorder-held-count');
+  if (heldEl) {
+    heldEl.textContent = reorderHeldIds.size ? `／🔒保留 ${reorderHeldIds.size}件` : '';
   }
 }
 
@@ -150,12 +193,13 @@ function refreshReorderMarkers() {
     markers[pin.id] = marker;
   });
 
-  // 未処理ピン（グレー、元の番号を表示）
+  // 未処理ピン（グレー、元の番号を表示）／🔒保留ピンは琥珀で「動かない」を明示
   remainingPins.forEach(pin => {
     const origIdx = pins.indexOf(pin) + 1;
+    const held = isPinHeld(pin.id);
     const icon = L.divIcon({
       className: '',
-      html: `<div class="pin-icon reorder-pending">${origIdx}</div>`,
+      html: `<div class="pin-icon ${held ? 'reorder-held' : 'reorder-pending'}" ${held ? 'title="🔒保留中: 並べ替えてもこの番号のまま"' : ''}>${origIdx}</div>`,
       iconSize: [sz, sz],
       iconAnchor: [sz/2, sz/2]
     });
@@ -171,6 +215,17 @@ function refreshReorderMarkers() {
       saveToStorage();
     });
     markers[pin.id] = marker;
+  });
+
+  // 🔒保留のトグル: ピンを右クリック（スマホは長押し）。
+  // ★stopPropagationしないと地図側のcontextmenu（並べ替え中は「ピン追加」）に抜けて、
+  //   ピンを右クリックしただけで新しいピンが生えてしまう。
+  Object.keys(markers).forEach(id => {
+    markers[id].on('contextmenu', function (e) {
+      L.DomEvent.stopPropagation(e);
+      L.DomEvent.preventDefault(e);
+      toggleReorderHold(parseInt(id));
+    });
   });
 }
 
@@ -214,10 +269,24 @@ function finishReorder() {
     const startNum = getReorderStartNum();
     const insertIdx = startNum - 1;
     const reorderedIds = new Set(reorderedPins.map(p => p.id));
-    const newPins = pins.filter(p => !reorderedIds.has(p.id));
-    const clampedIdx = Math.min(insertIdx, newPins.length);
-    newPins.splice(clampedIdx, 0, ...reorderedPins);
-    pins = newPins;
+
+    // 🔒保留ピンは「元の位置(=今の番号)」に固定する。
+    // 手順: ①保留を一旦抜いた配列を作って並べ替えブロックを挿入 → ②保留を元のindexへ戻す。
+    //       ②は元index昇順に splice すれば、各ピンがちょうど元のindexに収まる。
+    const heldEntries = pins
+      .map((p, idx) => ({ pin: p, idx }))
+      .filter(x => reorderHeldIds.has(x.pin.id));
+
+    const rest = pins.filter(p => !reorderedIds.has(p.id) && !reorderHeldIds.has(p.id));
+    // 挿入位置は最終番号での位置。保留がその手前を占める分だけ rest 座標系では前にずれる
+    const heldBefore = heldEntries.filter(x => x.idx < insertIdx).length;
+    const clampedIdx = Math.max(0, Math.min(insertIdx - heldBefore, rest.length));
+    rest.splice(clampedIdx, 0, ...reorderedPins);
+
+    heldEntries.forEach(({ pin, idx }) => {
+      rest.splice(Math.min(idx, rest.length), 0, pin);
+    });
+    pins = rest;
   }
 
   // モード終了
@@ -226,6 +295,7 @@ function finishReorder() {
   remainingPins = [];
   reorderSwapMode = false;
   reorderTakeHistory = [];
+  reorderHeldIds = new Set();
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
@@ -245,6 +315,7 @@ function cancelReorder() {
   reorderAnchorSet = false;
   reorderSwapMode = false;
   reorderTakeHistory = [];
+  reorderHeldIds = new Set();
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
