@@ -563,6 +563,9 @@ body.dark .pin-list-coords { color: #777; }
 
 /* === スマホ最適化 (max-width:600px) === */
 @media (max-width: 600px) {
+  /* 物理キーボードが無いのでショートカット案内は出さない（バナーを狭めない） */
+  #reorder-keyhint { display: none; }
+
   /* 100dvh = モバイルのアドレスバー伸縮に追従。ツールバー実高+下端safe-area分を引く */
   #map { height: calc(100dvh - 56px - env(safe-area-inset-bottom)); }
 

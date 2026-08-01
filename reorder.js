@@ -87,6 +87,19 @@ function handleReorderTap(pinId) {
   refreshReorderMarkers();
 }
 
+// 直前の取り込みを1つ戻す（🏢まとめ取りなら丸ごと）。
+// マーカータップとキーボードショートカット(Backspace/Z)の共通処理。
+function undoLastTake() {
+  if (!reorderMode || reorderedPins.length === 0) return false;
+  const lastN = reorderTakeHistory.pop() || 1;
+  const back = reorderedPins.splice(reorderedPins.length - lastN, lastN);
+  remainingPins.unshift(...back);
+  updateReorderCount();
+  refreshReorderMarkers();
+  showToast(lastN > 1 ? `🏢 ${lastN}本まとめて戻しました` : '1つ戻しました');
+  return true;
+}
+
 function updateReorderCount() {
   document.getElementById('reorder-count').textContent = reorderedPins.length;
   const instr = document.getElementById('reorder-instruction');
@@ -126,14 +139,7 @@ function refreshReorderMarkers() {
       // 最後に取り込んだピン（🏢まとめ取りならその建物のどれか）をタップで、直前のタップ分を丸ごと戻す
       const lastN = reorderTakeHistory[reorderTakeHistory.length - 1] || 1;
       const lastTake = reorderedPins.slice(-lastN);
-      if (lastTake.some(p => p.id === pin.id)) {
-        reorderTakeHistory.pop();
-        const back = reorderedPins.splice(reorderedPins.length - lastN, lastN);
-        remainingPins.unshift(...back);
-        updateReorderCount();
-        refreshReorderMarkers();
-        showToast(lastN > 1 ? `🏢 ${lastN}本まとめて戻しました` : '1つ戻しました');
-      }
+      if (lastTake.some(p => p.id === pin.id)) undoLastTake();
     });
     marker.on('dragend', function(e) {
       const pos = e.target.getLatLng();
@@ -574,3 +580,48 @@ function cancelConcat() {
   document.getElementById('concat-banner').classList.remove('show');
   refreshAllMarkers();
 }
+
+// --- 並べ替えモードのキーボードショートカット（PC作業用） ---
+// 200件超をタップし続ける作業なので、押し間違いの「戻す」を手元で叩けるのが効く。
+// 戻す操作は本来「直前に取り込んだ紫ピンを地図から探してクリック」で、団子の中だと特に面倒だった。
+(function () {
+  // 入力中（開始番号・検索ボックス・ラベル編集など）は横取りしない。IME変換中も無視。
+  function isTyping(e) {
+    if (e.isComposing || e.keyCode === 229) return true;
+    const t = e.target;
+    if (!t) return false;
+    const tag = (t.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+  }
+
+  // モーダル/凡例等が開いている時は、Escは「それを閉じる」が優先（core.js側が処理する）。
+  // ここで並べ替えまで巻き込むと、モーダルを閉じたつもりが作業全消しになる。
+  function overlayOpen() {
+    return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
+      .some(function (id) {
+        var el = document.getElementById(id);
+        return el && el.classList.contains('show');
+      });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (!reorderMode || isTyping(e) || overlayOpen()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // ブラウザ標準操作は邪魔しない
+
+    const k = e.key;
+    if (k === 'Backspace' || k === 'z' || k === 'Z') {
+      // 戻す（🏢まとめ取りなら丸ごと）。Backspaceは押しっぱなしで連続リピートも効く
+      e.preventDefault();
+      if (!undoLastTake()) showToast('戻せる取り込みがありません');
+    } else if (k === 'Enter') {
+      e.preventDefault();
+      finishReorder();
+    } else if (k === 'Escape') {
+      // 取消は全部捨てる操作。作業が乗っている時だけ確認を挟む
+      e.preventDefault();
+      if (reorderedPins.length > 0 &&
+          !confirm(`並べ替えを取消します。取り込み済みの${reorderedPins.length}件は破棄されます。よろしいですか？`)) return;
+      cancelReorder();
+    }
+  });
+})();
