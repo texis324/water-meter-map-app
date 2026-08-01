@@ -581,7 +581,8 @@ function cancelConcat() {
   refreshAllMarkers();
 }
 
-// --- 並べ替えモードのキーボードショートカット（PC作業用） ---
+// --- 並べ替えのキーボードショートカット（PC作業用） ---
+// N=開始 / Backspace・Z=戻す / Enter=完了 / Esc=取消。
 // 200件超をタップし続ける作業なので、押し間違いの「戻す」を手元で叩けるのが効く。
 // 戻す操作は本来「直前に取り込んだ紫ピンを地図から探してクリック」で、団子の中だと特に面倒だった。
 (function () {
@@ -605,10 +606,35 @@ function cancelConcat() {
   }
 
   document.addEventListener('keydown', function (e) {
-    if (!reorderMode || isTyping(e) || overlayOpen()) return;
+    if (isTyping(e) || overlayOpen()) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return; // ブラウザ標準操作は邪魔しない
 
     const k = e.key;
+    const isN = (k === 'n' || k === 'N');
+
+    // --- 並べ替えモードに入っていない時: N で開始 ---
+    if (!reorderMode) {
+      if (!isN) return;
+      e.preventDefault();
+      // 他のモード（スタンプ・グループ化・まとめて移動等）が動いている時に黙って乗っ取ると、
+      // そちらの選択途中の状態が消える。キーの誤爆で起きると原因が分からないので明示的に断る。
+      const busy = typeof activeModeName === 'function' ? activeModeName('reorder') : null;
+      if (busy) {
+        showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中です。先に終了してください`);
+        return;
+      }
+      toggleReorderMode();
+      return;
+    }
+
+    // --- 並べ替えモード中 ---
+    if (isN) {
+      // ここで toggleReorderMode() を呼ぶと cancelReorder＝取り込み全破棄。
+      // 誤爆で作業が飛ぶので、終了はEnter/Escに限定する。
+      e.preventDefault();
+      showToast('並べ替え中です（Enter=完了 / Esc=取消）');
+      return;
+    }
     if (k === 'Backspace' || k === 'z' || k === 'Z') {
       // 戻す（🏢まとめ取りなら丸ごと）。Backspaceは押しっぱなしで連続リピートも効く
       e.preventDefault();

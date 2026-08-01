@@ -122,8 +122,9 @@ function performRedo() {
 // 排他モード一覧: 同時にONになれない（一つONにすると他は強制OFF）
 // reorderSwapMode は reorderMode のサブモードなので除外
 // pinMode は他モードがOFFの時の暗黙的なデフォルトなので除外
-function exitAllOtherModes(exceptName) {
-  const modes = [
+// モード一覧の正本。exitAllOtherModes と activeModeName で共有する（二重管理を避ける）
+function getModeRegistry() {
+  return [
     { name: 'stamp',        flag: () => typeof stampMode !== 'undefined' && stampMode,                 exit: () => finishStampMode() },
     { name: 'reorder',      flag: () => typeof reorderMode !== 'undefined' && reorderMode,             exit: () => cancelReorder() },
     { name: 'traceReorder', flag: () => typeof traceReorderMode !== 'undefined' && traceReorderMode,   exit: () => cancelTraceReorder() },
@@ -135,6 +136,23 @@ function exitAllOtherModes(exceptName) {
     // multiMoveの移動はdragendごとに保存済みなので、モード切替では確定終了(finish)する（勝手にundoしない）
     { name: 'multiMove',    flag: () => typeof multiMoveMode !== 'undefined' && multiMoveMode,         exit: () => finishMultiMove() },
   ];
+}
+
+// 現在ONになっているモード名（exceptName は無視）。無ければ null。
+// キーボードショートカットが「他のモードを黙って蹴散らす」のを防ぐ用途。
+function activeModeName(exceptName) {
+  const m = getModeRegistry().find(x => x.name !== exceptName && x.flag());
+  return m ? m.name : null;
+}
+
+const MODE_LABELS = {
+  stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
+  group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動',
+};
+
+function exitAllOtherModes(exceptName) {
+  const modes = getModeRegistry();
   modes.forEach(m => {
     if (m.name === exceptName) return;
     try {
