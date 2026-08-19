@@ -639,7 +639,8 @@ function openModal(pinId) {
   document.getElementById('pin-memo').value = pin.memo;
   document.getElementById('pin-color').value = pin.color || '#1976D2';
   renderColorPresets(pin.color || '');
-  document.getElementById('modal-title').textContent = `ピン #${pins.indexOf(pin) + 1}`;
+  { const _n = getLabelNum(pin.label);   // 表示番号はラベル正本（配列indexは番号とズレ得る）
+    document.getElementById('modal-title').textContent = `ピン #${_n != null ? _n : pins.indexOf(pin) + 1}`; }
   renderGroupItems(pin.group || []);
   document.getElementById('pin-modal').classList.add('show');
 }

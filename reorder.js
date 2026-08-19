@@ -10,11 +10,35 @@ function relabelPins() {
   });
 }
 
+// --- 配列順をラベル番号順に揃える（並べ替え系モードの入口で必ず呼ぶ） ---
+// 番号の正本はラベル先頭番号（2026-07-08 番号正本化）。一方、並べ替え/なぞり順/連結は
+// 「配列の順番＝番号」を前提に動く（アンカーidx→開始番号・挿入位置・完了時のrelabelPins）。
+// モーダルでラベルの番号だけ書き換える等で配列順とラベル番号がズレたまま並べ替えを完了すると、
+// 触っていないピンの番号まで動く（2026-08-19 尾上町で実害: 66〜75/115・116/151・152が勝手に入替）。
+// → 入口で配列をラベル番号順（枝番はfloat・番号なしは末尾・同値は元の順＝安定）に並べ直して前提を成立させる。
+// ラベル文字列そのものは変えない（見た目・クラウド・old_noに影響なし）。
+function normalizePinOrderByLabel() {
+  const withIdx = pins.map((p, i) => ({ p, i, n: getLabelNum(p.label) }));
+  withIdx.sort((a, b) => {
+    const an = (a.n == null) ? Infinity : a.n;
+    const bn = (b.n == null) ? Infinity : b.n;
+    return (an - bn) || (a.i - b.i);
+  });
+  const changed = withIdx.some((x, i) => x.i !== i);
+  if (changed) pins = withIdx.map(x => x.p);
+  return changed;
+}
+
 // --- 並べ替えモード ---
 let reorderMode = false;
 let reorderedPins = [];    // 並べ替え済みのピン（タップ順）
 let remainingPins = [];    // まだタップされていないピン
 let reorderAnchorSet = false; // 開始位置が確定済みか
+// アンカー（開始位置）のピンID。ブロックは完了時に「このピンの直後」に入る。
+// 旧実装は「開始番号-1 の配列位置」に固定挿入していたため、開始位置より前のピンを取り込むと
+// その分だけ前が詰まり、後ろのピンがブロックの前へ滑り込んだ（2026-08-19 尾上町: 78,69,79 と取ると 80 が 77 番に）。
+// null のときは「開始番号の位置」の旧セマンティクスで動く（数字を直接入力し、対応するピンが無い場合）。
+let reorderAnchorPinId = null;
 let reorderSwapMode = false;  // 入替モード（番号指定不要）
 let reorderTakeHistory = []; // 各タップで取り込んだ本数（🏢まとめ取りのUndo用）
 // 🔒保留ピン: 「この番号は動かすな」と明示指定したピンのID。
@@ -60,7 +84,9 @@ function toggleReorderMode() {
   }
   // 並べ替えモード開始
   exitAllOtherModes('reorder');
+  normalizePinOrderByLabel();   // 配列順＝番号順を保証（アンカー番号・挿入位置の前提）
   reorderMode = true;
+  reorderAnchorPinId = null;
   pinMode = false;
   reorderedPins = [];
   remainingPins = [...pins];
@@ -87,6 +113,7 @@ function handleReorderTap(pinId) {
     const startNum = anchorIdx + 2; // そのピンの次の番号
     document.getElementById('reorder-start').value = startNum;
     reorderAnchorSet = true;
+    reorderAnchorPinId = pinId;     // 完了時は「このピンの直後」に挿入
     refreshReorderMarkers();
     showToast(`${anchorIdx + 1}番の次（${startNum}番）から並べ替え開始`);
     return;
@@ -149,6 +176,19 @@ function updateReorderCount() {
   if (heldEl) {
     heldEl.textContent = reorderHeldIds.size ? `／🔒保留 ${reorderHeldIds.size}件` : '';
   }
+}
+
+// 開始番号を手入力した時: その番号-1 のピンをアンカーに解決する（1 なら先頭＝アンカーなし）。
+// 対応するピンが無ければ旧セマンティクス（番号位置）にフォールバック。
+function setReorderStartFromInput() {
+  const v = parseInt(document.getElementById('reorder-start')?.value || 1);
+  reorderAnchorSet = true;
+  reorderAnchorPinId = null;
+  if (v > 1) {
+    const prev = findPinByNum(v - 1);
+    if (prev) reorderAnchorPinId = prev.id;
+  }
+  updateReorderDisplay();
 }
 
 function getReorderStartNum() {
@@ -244,6 +284,7 @@ function toggleReorderSwapMode() {
     btn.style.color = 'white';
     startArea.style.display = '';
     reorderAnchorSet = false;
+    reorderAnchorPinId = null;
     showToast('通常モード: 開始番号を指定して並べ替え');
   }
   updateReorderCount();
@@ -256,6 +297,7 @@ function finishReorder() {
     return;
   }
   pushUndo();
+  normalizePinOrderByLabel();   // 念のため完了直前にも（モード中にラベル番号が変わる経路への保険）
   if (reorderSwapMode) {
     // 入替モード: タップしたピンの元の位置（ソート済み）にタップ順で配置
     const origIndices = reorderedPins.map(p => pins.indexOf(p)).sort((a, b) => a - b);
@@ -278,9 +320,22 @@ function finishReorder() {
       .filter(x => reorderHeldIds.has(x.pin.id));
 
     const rest = pins.filter(p => !reorderedIds.has(p.id) && !reorderHeldIds.has(p.id));
-    // 挿入位置は最終番号での位置。保留がその手前を占める分だけ rest 座標系では前にずれる
-    const heldBefore = heldEntries.filter(x => x.idx < insertIdx).length;
-    const clampedIdx = Math.max(0, Math.min(insertIdx - heldBefore, rest.length));
+    let clampedIdx;
+    const anchorPin = (reorderAnchorPinId != null) ? pins.find(p => p.id === reorderAnchorPinId) : null;
+    if (anchorPin && startNum > 1) {
+      // ★アンカー基準: ブロックは「アンカーピンの直後」。アンカー自身が取り込み/保留で rest に無ければ、
+      //   元の並びで手前へ遡って rest にいる最初のピンの直後（何も無ければ先頭）。
+      //   これで開始位置より前のピンを取り込んでも、後ろのピンがブロックの前へ滑り込まない。
+      let ref = null;
+      for (let i = pins.indexOf(anchorPin); i >= 0; i--) {
+        if (rest.includes(pins[i])) { ref = pins[i]; break; }
+      }
+      clampedIdx = ref ? rest.indexOf(ref) + 1 : 0;
+    } else {
+      // 開始番号のみ（アンカーピン無し／先頭指定）: 最終番号での位置。保留がその手前を占める分だけ rest 座標系では前にずれる
+      const heldBefore = heldEntries.filter(x => x.idx < insertIdx).length;
+      clampedIdx = Math.max(0, Math.min(insertIdx - heldBefore, rest.length));
+    }
     rest.splice(clampedIdx, 0, ...reorderedPins);
 
     heldEntries.forEach(({ pin, idx }) => {
@@ -296,6 +351,7 @@ function finishReorder() {
   reorderSwapMode = false;
   reorderTakeHistory = [];
   reorderHeldIds = new Set();
+  reorderAnchorPinId = null;
   document.getElementById('btn-reorder').classList.remove('active');
   document.getElementById('btn-reorder').textContent = '🔢 並替え';
   document.getElementById('btn-mode').style.display = '';
@@ -313,6 +369,7 @@ function cancelReorder() {
   reorderedPins = [];
   remainingPins = [];
   reorderAnchorSet = false;
+  reorderAnchorPinId = null;
   reorderSwapMode = false;
   reorderTakeHistory = [];
   reorderHeldIds = new Set();
@@ -342,6 +399,7 @@ function toggleTraceReorder() {
     return;
   }
   exitAllOtherModes('traceReorder');
+  normalizePinOrderByLabel();
   traceReorderMode = true;
   pinMode = false;
   traceReorderPoints = [];
@@ -568,6 +626,7 @@ function toggleConcatMode() {
     return;
   }
   exitAllOtherModes('concat');
+  normalizePinOrderByLabel();
   concatMode = true;
   pinMode = false;
   concatFirst = null;
