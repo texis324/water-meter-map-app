@@ -78,6 +78,9 @@
       </div>
       <div id="group-items" style="max-height:150px;overflow-y:auto;"></div>
     </div>
+    <div style="margin:6px 0 10px;">
+      <button id="btn-pin-start" onclick="rotateRouteToStartAt(editingPinId)" title="このピンを1番にして、元の1番〜(この番号-1)をルートの最後に回す（回転）" style="width:100%;padding:8px;border:none;border-radius:6px;background:#00897B;color:#fff;font-size:14px;cursor:pointer;">🏁 ここをスタートにする（1番にして残りを後ろへ回す）</button>
+    </div>
     <div class="modal-buttons">
       <button class="btn-delete" id="btn-pin-delete" onclick="deletePin()">削除</button>
       <button class="btn-cancel" onclick="closeModal()">キャンセル</button>

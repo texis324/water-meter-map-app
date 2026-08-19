@@ -512,6 +512,31 @@ function handleSwapTwoTap(pinId, evt) {
   });
 })();
 
+// --- 🏁 ここをスタートにする（ルート回転）: 指定ピンを1番にし、元の1番〜(その番号-1)を末尾へ回す ---
+// 動機(2026-08-19 Tench要望): 「62から歩き始めて…237まで行き、最後に1〜61を回る」。並べ替えで全部タップするのは非現実的、
+// 3回反転(R)でも作れるが分かりにくい。番号のセットは位置に対して据え置き（枝番・欠番のパターン保持）・Undo可。
+function rotateRouteToStartAt(pinId) {
+  const busy = typeof activeModeName === 'function' ? activeModeName() : null;
+  if (busy) { showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中は使えません`); return; }
+  normalizePinOrderByLabel();
+  const idx = pins.findIndex(p => p.id === pinId);
+  if (idx === -1) return;
+  const pin = pins[idx];
+  const oldNum = getLabelNum(pin.label);
+  if (idx === 0) { showToast('もう1番（スタート）です'); return; }
+  if (!confirm(`${oldNum != null ? oldNum + '番' : 'このピン'}をスタート(1番)にします。
+元の1〜${oldNum != null ? oldNum - 1 : idx}番はルートの最後に回ります。よろしいですか？`)) return;
+  pushUndo();
+  const nums = pins.map(p => getLabelNum(p.label));               // 位置ごとの番号（据え置き）
+  const rotated = pins.slice(idx).concat(pins.slice(0, idx));      // 回転
+  rotated.forEach((p, k) => { if (nums[k] != null) p.label = setLabelNum(p.label, nums[k]); });
+  pins = rotated;
+  if (typeof closeModal === 'function') closeModal();
+  refreshAllMarkers();
+  saveToStorage();
+  showToast(`🏁 ${oldNum}番 → 1番に。元の1〜${oldNum - 1}番は末尾（${pins.length - idx + 1}番〜）へ回しました（元に戻すは↩）`);
+}
+
 // --- なぞり並べ替えモード ---
 let traceReorderMode = false;
 let traceReorderPoints = [];
