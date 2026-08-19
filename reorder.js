@@ -495,6 +495,16 @@ function handleSwapTwoTap(pinId, evt) {
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       toggleSwapTwoMode();
+    } else if (e.key === 'd' || e.key === 'D') {
+      // D = 🔗連結（ドッキング）の開始/中止。他モード中は toggleConcatMode 側の exitAllOtherModes に任せず、Nと同じ作法で断る
+      e.preventDefault();
+      if (typeof concatMode !== 'undefined' && concatMode) { cancelConcat(); return; }
+      const busy = typeof activeModeName === 'function' ? activeModeName('concat') : null;
+      if (busy) { showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中です。先に終了してください`); return; }
+      toggleConcatMode();
+    } else if (e.key === 'Escape' && typeof concatMode !== 'undefined' && concatMode) {
+      e.preventDefault();
+      cancelConcat();
     } else if (e.key === 'Escape' && swapTwoMode) {
       e.preventDefault();
       cancelSwapTwo();
