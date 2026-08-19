@@ -750,6 +750,45 @@ function toggleMode() {
   updateModeBtn();
 }
 
+// --- Space = 🔒閲覧 ⇄ 📍ピン追加(ドラッグ移動可) の切替（PC作業用・2026-08-18 Tench要望） ---
+// 並べ替え中に位置を直したくなる→モード切替→戻る、が頻発するので手元で叩けるようにする。
+// 罠: ①フォーカスが残ったボタンをSpaceが「もう一回押す」(完了ボタン直後など) → blur+preventDefault(keydown/keyup両方)
+//     ②入力欄/IME中は横取りしない ③他モード中は黙って乗っ取らずトーストで断る（Nと同じ作法）
+(function () {
+  function isTyping(e) {
+    if (e.isComposing || e.keyCode === 229) return true;
+    const t = e.target;
+    if (!t) return false;
+    const tag = (t.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+  }
+  function overlayOpen() {
+    return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
+      .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });
+  }
+  function isSpace(e) { return e.key === ' ' || e.code === 'Space' || e.key === 'Spacebar'; }
+
+  document.addEventListener('keydown', function (e) {
+    if (!isSpace(e) || isTyping(e)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.repeat) { e.preventDefault(); return; }           // 押しっぱなしで連打トグルしない
+    e.preventDefault();
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    if (overlayOpen()) return;                                // モーダル中は何もしない（既定動作だけ止める）
+    const busy = typeof activeModeName === 'function' ? activeModeName() : null;
+    if (busy) {
+      showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中はSpaceで切替できません`);
+      return;
+    }
+    toggleMode();
+    showToast(pinMode ? '📍 ピン追加モード（ドラッグで移動できます）' : '🔒 閲覧モード');
+  });
+  // Chrome はボタンの click を Space の keyup で発火する。keydown側で blur 済みだが念のため止める
+  document.addEventListener('keyup', function (e) {
+    if (isSpace(e) && !isTyping(e)) e.preventDefault();
+  });
+})();
+
 // --- マーカー全更新 ---
 // _markerCache（宣言はファイル先頭）: refresh中だけ有効な共有インデックス。
 // createMarkerのピン毎O(n)検索（座標重複・グループ所属）をO(1)にする

@@ -17,7 +17,7 @@
 </div>
 
 <div id="toolbar">
-  <button id="btn-mode" class="active" onclick="toggleMode()">📍 ピン追加モード</button>
+  <button id="btn-mode" class="active" onclick="toggleMode()" title="閲覧⇄ピン追加（キーボード: Space）">📍 ピン追加モード</button>
   <button id="btn-menu-edit" onclick="toggleToolbarMenu('edit')" title="並べ替え・グループ等の編集モード">✏️ 編集 ▾</button>
   <button id="btn-sync" onclick="openSyncModal()" title="スマホ⇔PCでデータ同期（クラウド）">☁️ 同期</button><span id="sync-status" style="font-size:13px;color:#1976D2;vertical-align:middle;"></span>
   <button id="btn-list" onclick="togglePinList()">📋 一覧</button>
@@ -121,7 +121,7 @@
       </div>
       <div class="help-section">
         <div class="help-title">🔢 並替え</div>
-        <div class="help-desc">ピンをタップした順に番号を振り直す。開始番号も指定可能。同じ場所の建物は🏢ワンタップでまとめ取り<br><b>🔒保留</b>: 並替え中にピンを<b>右クリック（スマホは長押し）</b>すると琥珀色になり、<b>その番号のまま動かなくなる</b>。「この1軒だけ今の順番で置いておきたい」時に使う。もう一度右クリックで解除。<br><b>⌨ PCショートカット</b>: <b>N</b> = 並替えモード開始 / 以下は並替え中のみ → <b>Backspace</b> または <b>Z</b> = 直前の取り込みを戻す（押しっぱなしで連続。まとめ取りは丸ごと戻る） / <b>Enter</b> = 完了 / <b>Esc</b> = 取消（確認あり）</div>
+        <div class="help-desc">ピンをタップした順に番号を振り直す。開始番号も指定可能。同じ場所の建物は🏢ワンタップでまとめ取り<br><b>🔒保留</b>: 並替え中にピンを<b>右クリック（スマホは長押し）</b>すると琥珀色になり、<b>その番号のまま動かなくなる</b>。「この1軒だけ今の順番で置いておきたい」時に使う。もう一度右クリックで解除。<br><b>⌨ PCショートカット</b>: <b>Space</b> = 🔒閲覧⇄📍ピン追加 切替（他モード中は無効） / <b>N</b> = 並替えモード開始 / 以下は並替え中のみ → <b>Backspace</b> または <b>Z</b> = 直前の取り込みを戻す（押しっぱなしで連続。まとめ取りは丸ごと戻る） / <b>Enter</b> = 完了 / <b>Esc</b> = 取消（確認あり）</div>
       </div>
       <div class="help-section">
         <div class="help-title">👆 なぞり順</div>
