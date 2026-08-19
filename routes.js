@@ -177,7 +177,19 @@ function changeTraceOpacity(val) {
 // savedTraces[i] = { points, color, kind } （kind 無し = 旧データ = route 扱い）
 function getTraceKind() {
   const el = document.getElementById('trace-kind');
-  return (el && el.value === 'divider') ? 'divider' : 'route';
+  const v = el ? el.value : 'route';
+  return (v === 'divider' || v === 'marker') ? v : 'route';
+}
+// 📍目印（休憩スポット等）: 名前から絵文字を推定。savedTraces に {kind:'marker', points:[{lat,lng}], label, icon, color} で保存
+// （線と同じ層＝保存/クラウド同期/Undo/書出しが全部そのまま効く。ピンではないので番号も順路も提出も無関係）
+const NOTE_ICON_RULES = [
+  [/休憩|休む|ベンチ|座/, '☕'], [/自販|飲み|水分|ジュース/, '🥤'], [/トイレ|便所|WC/i, '🚻'], [/日陰|木陰|涼/, '🌳'],
+  [/駐車|バイク|停め|置き場/, '🅿'], [/危険|注意|気をつけ|滑/, '⚠'], [/犬|猫|動物/, '🐕'], [/コンビニ|ローソン|ファミマ|セブン|店/, '🏪'],
+  [/開始|スタート|集合/, '🏁'], [/昼|飯|弁当|食/, '🍙'], [/鍵|カギ|施錠/, '🔑'], [/埋|土|スコップ|掘/, '🪏'],
+];
+function noteIconFor(label) {
+  for (const [re, ic] of NOTE_ICON_RULES) if (re.test(label || '')) return ic;
+  return '📌';
 }
 function getTraceDrawColor() {
   const el = document.getElementById('trace-color');
@@ -212,8 +224,10 @@ function toggleTraceMode() {
   document.getElementById('btn-mode').style.display = 'none';
   document.getElementById('trace-banner').classList.add('show');
   updateTraceCount();
-  showToast(getTraceKind() === 'divider' ? 'タップで区切り線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）'
-                                        : 'タップでルート線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）');
+  const _k = getTraceKind();
+  showToast(_k === 'marker' ? 'タップで目印を置いてください（名前を聞きます / Enter=終了）'
+          : _k === 'divider' ? 'タップで区切り線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）'
+          : 'タップでルート線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）');
 }
 
 // 取消（描きかけを捨てて終了）
@@ -230,6 +244,18 @@ function cancelTrace() {
 
 function handleTraceTap(latlng) {
   const point = { lat: latlng.lat, lng: latlng.lng };
+  if (getTraceKind() === 'marker') {
+    // 📍目印: 1タップ＝1個。名前を聞いて即保存（モードは続くので連続で置ける・Enter/Escで終了）
+    const label = prompt('目印の名前（例: 休憩 / 自販機 / トイレ / 日陰 / 駐車 / 危険）', '休憩');
+    if (label === null) return;
+    const name = (label || '').trim() || '目印';
+    pushUndo();
+    savedTraces.push({ kind: 'marker', points: [point], label: name, icon: noteIconFor(name), color: getTraceDrawColor() });
+    redrawSavedTraces();
+    saveToStorage();
+    showToast(`${noteIconFor(name)} 「${name}」を置きました（続けてタップで追加 / Enterで終了）`);
+    return;
+  }
   tracePoints.push(point);
   updateTraceCount();
 
@@ -323,6 +349,36 @@ function redrawSavedTraces() {
   savedTraceLines.forEach(l => map.removeLayer(l));
   savedTraceLines = [];
   savedTraces.forEach((trace, traceIdx) => {
+    if (trace.kind === 'marker') {
+      const pt = trace.points[0];
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="note-marker" style="border-color:${trace.color || '#212121'}"><span class="note-ico">${trace.icon || '📌'}</span><span class="note-lbl">${escapeHtml(trace.label || '')}</span></div>`,
+        iconSize: null, iconAnchor: [14, 14]
+      });
+      const mk = L.marker([pt.lat, pt.lng], { icon, draggable: true, zIndexOffset: 500 }).addTo(map);
+      mk.bindTooltip(`📍 ${escapeHtml(trace.label || '目印')}`, { direction: 'top', offset: [0, -14] });
+      mk.on('click', function(e) {           // タップで名前変更
+        L.DomEvent.stopPropagation(e);
+        if (traceEditMode || traceMode || reorderMode) return;
+        const v = prompt('目印の名前を変更（空欄で変更なし）', trace.label || '');
+        if (v === null || !v.trim()) return;
+        pushUndo(); trace.label = v.trim(); trace.icon = noteIconFor(trace.label);
+        redrawSavedTraces(); saveToStorage();
+      });
+      mk.on('contextmenu', function(e) {     // 右クリック/長押しで削除
+        L.DomEvent.stopPropagation(e); L.DomEvent.preventDefault(e);
+        if (confirm(`目印「${trace.label || ''}」を削除しますか？`)) {
+          pushUndo(); savedTraces.splice(traceIdx, 1); redrawSavedTraces(); saveToStorage(); showToast('目印を削除しました');
+        }
+      });
+      mk.on('dragend', function(e) {        // ドラッグで移動
+        const p = e.target.getLatLng(); pushUndo(); trace.points = [{ lat: p.lat, lng: p.lng }]; saveToStorage();
+      });
+      mk.setStyle = function() {};          // changeTraceOpacity が setStyle を一律に呼ぶので no-op を生やす
+      savedTraceLines.push(mk);
+      return;
+    }
     const coords = trace.points.map(p => [p.lat, p.lng]);
     const line = L.polyline(coords, traceStyleFor(trace.kind, trace.color, 6, 5)).addTo(map);
     // タップで編集モードに入る

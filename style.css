@@ -233,6 +233,16 @@ body.dark .menu-slider { color: #aaa; }
   border-color: #3E2723;
 }
 
+/* 📍目印（休憩スポット等）: 白丸＋絵文字＋小ラベル。ピンとは別物と一目で分かる見た目 */
+.note-marker {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,0.95); border: 2px solid #212121; border-radius: 14px;
+  padding: 2px 8px 2px 4px; font-size: 13px; line-height: 20px; white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35); color: #212121; font-weight: bold;
+}
+.note-marker .note-ico { font-size: 16px; }
+.note-marker .note-lbl { font-size: 11.5px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+
 /* 🔁2本入替: 1本目に選んだピン（水色＋太枠で「選択中」） */
 .pin-icon.swap-first {
   background: #00ACC1 !important;
