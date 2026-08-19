@@ -512,12 +512,7 @@ function cleanupTraceEdit() {
 // --- ⌨ ルート線/区切り線のキーボード（PC作業用・2026-08-19） ---
 // L = 開始（モード中はEnterと同じ「完了」）／ Enter = 完了 ／ Backspace・Z = 1点戻す ／ Esc = 取消
 (function () {
-  function isTyping(e) {
-    if (e.isComposing || e.keyCode === 229) return true;
-    const t = e.target; if (!t) return false;
-    const tag = (t.tagName || '').toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
-  }
+  function isTyping(e) { return kbIsTyping(e); }
   function overlayOpen() {
     return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
       .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });

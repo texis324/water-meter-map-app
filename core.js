@@ -787,13 +787,7 @@ function toggleMode() {
 // 罠: ①フォーカスが残ったボタンをSpaceが「もう一回押す」(完了ボタン直後など) → blur+preventDefault(keydown/keyup両方)
 //     ②入力欄/IME中は横取りしない ③他モード中は黙って乗っ取らずトーストで断る（Nと同じ作法）
 (function () {
-  function isTyping(e) {
-    if (e.isComposing || e.keyCode === 229) return true;
-    const t = e.target;
-    if (!t) return false;
-    const tag = (t.tagName || '').toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
-  }
+  function isTyping(e) { return kbIsTyping(e); }
   function overlayOpen() {
     return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
       .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });

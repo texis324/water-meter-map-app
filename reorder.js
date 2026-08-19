@@ -1,3 +1,21 @@
+// --- ⌨ キーボードショートカット共通: 「文字入力中か」の判定 ---
+// 文字を打つ欄（text/number/search等の input・textarea・contentEditable）と IME変換中だけ「入力中」。
+// select や input[type=color/range/checkbox]・button は入力中とみなさない（フォーカスが残ったままでも
+// L/N/R/D/Space が効くように）。2026-08-19: 区切り線プルダウンを選んだ後にLが効かない実害から。
+function kbIsTyping(e) {
+  if (e.isComposing || e.keyCode === 229) return true;
+  const t = e.target;
+  if (!t) return false;
+  if (t.isContentEditable) return true;
+  const tag = (t.tagName || '').toLowerCase();
+  if (tag === 'textarea') return true;
+  if (tag === 'input') {
+    const ty = (t.type || 'text').toLowerCase();
+    return !['color', 'range', 'checkbox', 'radio', 'button', 'submit', 'file'].includes(ty);
+  }
+  return false;
+}
+
 // --- ラベル番号の振り直し ---
 // pins配列の並び順に合わせてラベルの先頭番号を更新する（idは変更しない）
 // ラベルが空のピンは触らない。番号なしラベルには番号を付与する
@@ -479,12 +497,7 @@ function handleSwapTwoTap(pinId, evt) {
 
 // R = 2本入替 開始/中止、Esc = 中止（並べ替えモード側のEsc処理とは独立）
 (function () {
-  function isTyping(e) {
-    if (e.isComposing || e.keyCode === 229) return true;
-    const t = e.target; if (!t) return false;
-    const tag = (t.tagName || '').toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
-  }
+  function isTyping(e) { return kbIsTyping(e); }
   function overlayOpen() {
     return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
       .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });
@@ -879,13 +892,7 @@ function cancelConcat() {
 // 戻す操作は本来「直前に取り込んだ紫ピンを地図から探してクリック」で、団子の中だと特に面倒だった。
 (function () {
   // 入力中（開始番号・検索ボックス・ラベル編集など）は横取りしない。IME変換中も無視。
-  function isTyping(e) {
-    if (e.isComposing || e.keyCode === 229) return true;
-    const t = e.target;
-    if (!t) return false;
-    const tag = (t.tagName || '').toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
-  }
+  function isTyping(e) { return kbIsTyping(e); }
 
   // モーダル/凡例等が開いている時は、Escは「それを閉じる」が優先（core.js側が処理する）。
   // ここで並べ替えまで巻き込むと、モーダルを閉じたつもりが作業全消しになる。
