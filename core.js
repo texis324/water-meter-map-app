@@ -509,7 +509,7 @@ function createMarker(pin) {
       return;
     }
     if (typeof swapTwoMode !== 'undefined' && swapTwoMode) {
-      handleSwapTwoTap(pin.id);
+      handleSwapTwoTap(pin.id, e);
       return;
     }
 

@@ -33,7 +33,7 @@
 <!-- ✏️ 編集メニュー（モード系・上に開くドロップアップ） -->
 <div id="menu-edit" class="toolbar-menu">
   <button id="btn-reorder" onclick="toggleReorderMode()" title="並べ替えモード（キーボード: N）">🔢 並替え</button>
-  <button id="btn-swap-two" onclick="toggleSwapTwoMode()" title="2本のピンの番号を入れ替え（キーボード: R）">🔁 2本入替</button>
+  <button id="btn-swap-two" onclick="toggleSwapTwoMode()" title="始点→終点タップで範囲を反転／Shift+タップで2本だけ入替（キーボード: R）">🔁 反転/入替</button>
   <button id="btn-trace-reorder" onclick="toggleTraceReorder()">👆 なぞり順</button>
   <button id="btn-concat" onclick="toggleConcatMode()">🔗 連結</button>
   <button id="btn-stamp" onclick="toggleStampMode()">🔖 スタンプ</button>
@@ -122,7 +122,7 @@
       </div>
       <div class="help-section">
         <div class="help-title">🔢 並替え</div>
-        <div class="help-desc">ピンをタップした順に番号を振り直す。開始番号も指定可能。同じ場所の建物は🏢ワンタップでまとめ取り<br><b>🔒保留</b>: 並替え中にピンを<b>右クリック（スマホは長押し）</b>すると琥珀色になり、<b>その番号のまま動かなくなる</b>。「この1軒だけ今の順番で置いておきたい」時に使う。もう一度右クリックで解除。<br><b>⌨ PCショートカット</b>: <b>Space</b> = 🔒閲覧⇄📍ピン追加 切替（他モード中は無効） / <b>R</b> = 🔁2本入替（1本目→2本目をタップで番号だけ交換・自動終了） / <b>N</b> = 並替えモード開始 / 以下は並替え中のみ → <b>Backspace</b> または <b>Z</b> = 直前の取り込みを戻す（押しっぱなしで連続。まとめ取りは丸ごと戻る） / <b>Enter</b> = 完了 / <b>Esc</b> = 取消（確認あり）</div>
+        <div class="help-desc">ピンをタップした順に番号を振り直す。開始番号も指定可能。同じ場所の建物は🏢ワンタップでまとめ取り<br><b>🔒保留</b>: 並替え中にピンを<b>右クリック（スマホは長押し）</b>すると琥珀色になり、<b>その番号のまま動かなくなる</b>。「この1軒だけ今の順番で置いておきたい」時に使う。もう一度右クリックで解除。<br><b>⌨ PCショートカット</b>: <b>Space</b> = 🔒閲覧⇄📍ピン追加 切替（他モード中は無効） / <b>R</b> = 🔁範囲反転（始点→終点をタップでその区間を丸ごと逆順に・隣同士なら2本入替・<b>Shift+終点タップ</b>で離れた2本だけ入替・自動終了） / <b>N</b> = 並替えモード開始 / 以下は並替え中のみ → <b>Backspace</b> または <b>Z</b> = 直前の取り込みを戻す（押しっぱなしで連続。まとめ取りは丸ごと戻る） / <b>Enter</b> = 完了 / <b>Esc</b> = 取消（確認あり）</div>
       </div>
       <div class="help-section">
         <div class="help-title">👆 なぞり順</div>

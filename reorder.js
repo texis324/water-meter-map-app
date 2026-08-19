@@ -393,10 +393,13 @@ function cancelReorder() {
   showToast('並べ替えを取消しました');
 }
 
-// --- 🔁 2本入替（クイックスワップ）: R → 1本目タップ → 2本目タップ で番号だけ交換して自動終了 ---
-// 動機(2026-08-19 Tench要望): 「2つのピンをちょうど入れ替えたい」が N→入替モード→A→B→Enter で手数が多い。
-// 番号(ラベル先頭)だけを交換し、他のピンは一切触らない（枝番・欠番もそのまま）。配列位置も交換して 配列順=番号順 を保つ。
-// 1回入れ替えたら自動終了（連続でやるなら R をもう一度）。誤爆で次のクリックが入替になるのを防ぐ。
+// --- 🔁 R = 範囲反転／2本入替: R → 始点タップ → 終点タップ ---
+// 動機(2026-08-19 Tench要望): 「2つのピンをちょうど入れ替えたい」「109〜125を一気に反転したい」が
+// N→入替モード→…→Enter だと手数が多い。R→A→B の3手で終わらせる。
+//  ・既定 = A〜B の範囲を丸ごと反転（109↔125, 110↔124, …）。隣同士なら結果は2本入替と同じ
+//  ・2本目を Shift+クリック = 範囲は触らず A⇄B の2本だけ入替（PCのみ・スマホは反転のみ）
+// 番号のセット（枝番・欠番の位置）は範囲内で保たれ、範囲外のピンは一切触らない。配列位置も同じに並べ替えて 配列順=番号順 を保つ。
+// 1回実行したら自動終了（連続でやるなら R をもう一度）。誤爆で次のクリックが反転になるのを防ぐ。
 let swapTwoMode = false;
 let swapTwoFirstId = null;
 
@@ -411,29 +414,30 @@ function toggleSwapTwoMode() {
   exitAllOtherModes('swapTwo');
   swapTwoMode = true;
   swapTwoFirstId = null;
+  normalizePinOrderByLabel();   // 範囲＝配列の連続区間として扱うので、配列順＝番号順を保証してから
   const b = document.getElementById('btn-swap-two');
-  if (b) { b.classList.add('active'); b.textContent = '🔁 入替中...'; }
+  if (b) { b.classList.add('active'); b.textContent = '🔁 反転中...'; }
   if (typeof closeToolbarMenus === 'function') closeToolbarMenus();
-  showToast('🔁 入れ替える1本目のピンをタップ（Esc/Rで中止）');
+  showToast('🔁 始点のピンをタップ（Esc/Rで中止）');
 }
 
 function cancelSwapTwo(silent) {
   swapTwoMode = false;
   swapTwoFirstId = null;
   const b = document.getElementById('btn-swap-two');
-  if (b) { b.classList.remove('active'); b.textContent = '🔁 2本入替'; }
+  if (b) { b.classList.remove('active'); b.textContent = '🔁 反転/入替'; }
   refreshAllMarkers();
-  if (!silent) showToast('2本入替を中止しました');
+  if (!silent) showToast('反転/入替を中止しました');
 }
 
-function handleSwapTwoTap(pinId) {
+function handleSwapTwoTap(pinId, evt) {
   if (swapTwoFirstId == null) {
     swapTwoFirstId = pinId;
     const el = markers[pinId] && markers[pinId].getElement && markers[pinId].getElement();
     const icon = el && el.querySelector('.pin-icon');
     if (icon) icon.classList.add('swap-first');
     const p = pins.find(x => x.id === pinId);
-    showToast(`${getLabelNum(p && p.label) ?? '?'}番を選択 → 入れ替える2本目をタップ`);
+    showToast(`${getLabelNum(p && p.label) ?? '?'}番を選択 → 終点をタップで範囲反転（Shift+タップ=2本だけ入替）`);
     return;
   }
   if (pinId === swapTwoFirstId) {          // 同じピンをもう一度＝選択解除
@@ -446,15 +450,31 @@ function handleSwapTwoTap(pinId) {
   const b = pins.find(x => x.id === pinId);
   if (!a || !b) { cancelSwapTwo(true); showToast('ピンが見つかりません'); return; }
   const na = getLabelNum(a.label), nb = getLabelNum(b.label);
-  if (na == null || nb == null) { cancelSwapTwo(true); showToast('番号のないピンは入れ替えできません'); return; }
+  if (na == null || nb == null) { cancelSwapTwo(true); showToast('番号のないピンは反転/入替できません'); return; }
+  const shift = !!(evt && (evt.shiftKey || (evt.originalEvent && evt.originalEvent.shiftKey)));
+  const ia = pins.indexOf(a), ib = pins.indexOf(b);
+  const lo = Math.min(ia, ib), hi = Math.max(ia, ib);
   pushUndo();
-  a.label = setLabelNum(a.label, nb);
-  b.label = setLabelNum(b.label, na);
-  const ia = pins.indexOf(a), ib = pins.indexOf(b);   // 配列位置も交換（配列順=番号順の維持）
-  pins[ia] = b; pins[ib] = a;
+  if (shift || hi - lo === 1) {
+    // 2本だけ入替（隣同士は反転と同じ結果なのでこちらで十分）
+    a.label = setLabelNum(a.label, nb);
+    b.label = setLabelNum(b.label, na);
+    pins[ia] = b; pins[ib] = a;   // 配列位置も交換（配列順=番号順の維持）
+    cancelSwapTwo(true);
+    saveToStorage();
+    showToast(`🔁 ${na}番 ⇄ ${nb}番 を入れ替えました（元に戻すは↩）`);
+    return;
+  }
+  // 範囲反転: lo〜hi の区間を逆順にし、番号は「位置」に対して据え置き（枝番・欠番のパターンは保たれる）
+  const seg = pins.slice(lo, hi + 1);
+  const nums = seg.map(p => getLabelNum(p.label));
+  const rev = seg.slice().reverse();
+  rev.forEach((p, k) => { if (nums[k] != null) p.label = setLabelNum(p.label, nums[k]); });
+  pins.splice(lo, seg.length, ...rev);
+  const from = Math.min(na, nb), to = Math.max(na, nb);
   cancelSwapTwo(true);
   saveToStorage();
-  showToast(`🔁 ${na}番 ⇄ ${nb}番 を入れ替えました（元に戻すは↩）`);
+  showToast(`↔ ${from}〜${to} の ${seg.length}本を反転しました（元に戻すは↩）`);
 }
 
 // R = 2本入替 開始/中止、Esc = 中止（並べ替えモード側のEsc処理とは独立）
