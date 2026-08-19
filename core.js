@@ -135,6 +135,7 @@ function getModeRegistry() {
     { name: 'lassoDelete',  flag: () => typeof lassoDeleteMode !== 'undefined' && lassoDeleteMode,     exit: () => cancelLassoDeleteMode() },
     // multiMoveの移動はdragendごとに保存済みなので、モード切替では確定終了(finish)する（勝手にundoしない）
     { name: 'multiMove',    flag: () => typeof multiMoveMode !== 'undefined' && multiMoveMode,         exit: () => finishMultiMove() },
+    { name: 'swapTwo',      flag: () => typeof swapTwoMode !== 'undefined' && swapTwoMode,             exit: () => cancelSwapTwo(true) },
   ];
 }
 
@@ -148,7 +149,7 @@ function activeModeName(exceptName) {
 const MODE_LABELS = {
   stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
   group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
-  lassoDelete: '範囲削除', multiMove: 'まとめて移動',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替',
 };
 
 function exitAllOtherModes(exceptName) {
@@ -498,6 +499,10 @@ function createMarker(pin) {
       handleReorderTap(pin.id);
       return;
     }
+    if (typeof swapTwoMode !== 'undefined' && swapTwoMode) {
+      handleSwapTwoTap(pin.id);
+      return;
+    }
 
     if (groupMode) {
       handleGroupTap(pin.id);
@@ -505,6 +510,12 @@ function createMarker(pin) {
     }
     if (multiMoveMode) {
       handleMultiMoveTap(pin.id);
+      return;
+    }
+    // 🔒閲覧モード（ここまでの各モードが全部OFF＝pinModeが唯一の状態）: クリックで削除しない
+    // （ドラッグは既にガード済み。クリック削除だけ漏れていた＝誤操作＋自動push事故ルート）。詳細は右クリック
+    if (!pinMode) {
+      if (!activeModeName()) showToast('🔒 閲覧モード（右クリックで詳細／Spaceでピン追加モード）');
       return;
     }
     if (clickTimer) {
@@ -533,7 +544,8 @@ function createMarker(pin) {
         if (!pins.includes(pin)) return;
         // モード切替後にタイマーが発火して誤削除するのを防ぐ
         if (stampMode || concatMode || reorderMode || reorderSwapMode || groupMode ||
-            traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode) return;
+            traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode ||
+            (typeof swapTwoMode !== 'undefined' && swapTwoMode) || !pinMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
         delete markers[pin.id];

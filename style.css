@@ -233,6 +233,14 @@ body.dark .menu-slider { color: #aaa; }
   border-color: #3E2723;
 }
 
+/* 🔁2本入替: 1本目に選んだピン（水色＋太枠で「選択中」） */
+.pin-icon.swap-first {
+  background: #00ACC1 !important;
+  color: #fff;
+  border: 3px solid #006064;
+  box-shadow: 0 0 0 4px rgba(0,172,193,0.35);
+}
+
 /* ルートなぞりモード中のバナー */
 #trace-banner {
   display: none;

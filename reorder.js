@@ -383,6 +383,95 @@ function cancelReorder() {
   showToast('並べ替えを取消しました');
 }
 
+// --- 🔁 2本入替（クイックスワップ）: R → 1本目タップ → 2本目タップ で番号だけ交換して自動終了 ---
+// 動機(2026-08-19 Tench要望): 「2つのピンをちょうど入れ替えたい」が N→入替モード→A→B→Enter で手数が多い。
+// 番号(ラベル先頭)だけを交換し、他のピンは一切触らない（枝番・欠番もそのまま）。配列位置も交換して 配列順=番号順 を保つ。
+// 1回入れ替えたら自動終了（連続でやるなら R をもう一度）。誤爆で次のクリックが入替になるのを防ぐ。
+let swapTwoMode = false;
+let swapTwoFirstId = null;
+
+function toggleSwapTwoMode() {
+  if (swapTwoMode) { cancelSwapTwo(); return; }
+  const busy = typeof activeModeName === 'function' ? activeModeName('swapTwo') : null;
+  if (busy) {
+    showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中です。先に終了してください`);
+    return;
+  }
+  if (pins.length < 2) { showToast('ピンが2件以上必要です'); return; }
+  exitAllOtherModes('swapTwo');
+  swapTwoMode = true;
+  swapTwoFirstId = null;
+  const b = document.getElementById('btn-swap-two');
+  if (b) { b.classList.add('active'); b.textContent = '🔁 入替中...'; }
+  if (typeof closeToolbarMenus === 'function') closeToolbarMenus();
+  showToast('🔁 入れ替える1本目のピンをタップ（Esc/Rで中止）');
+}
+
+function cancelSwapTwo(silent) {
+  swapTwoMode = false;
+  swapTwoFirstId = null;
+  const b = document.getElementById('btn-swap-two');
+  if (b) { b.classList.remove('active'); b.textContent = '🔁 2本入替'; }
+  refreshAllMarkers();
+  if (!silent) showToast('2本入替を中止しました');
+}
+
+function handleSwapTwoTap(pinId) {
+  if (swapTwoFirstId == null) {
+    swapTwoFirstId = pinId;
+    const el = markers[pinId] && markers[pinId].getElement && markers[pinId].getElement();
+    const icon = el && el.querySelector('.pin-icon');
+    if (icon) icon.classList.add('swap-first');
+    const p = pins.find(x => x.id === pinId);
+    showToast(`${getLabelNum(p && p.label) ?? '?'}番を選択 → 入れ替える2本目をタップ`);
+    return;
+  }
+  if (pinId === swapTwoFirstId) {          // 同じピンをもう一度＝選択解除
+    swapTwoFirstId = null;
+    refreshAllMarkers();
+    showToast('選択を解除。1本目からやり直し');
+    return;
+  }
+  const a = pins.find(x => x.id === swapTwoFirstId);
+  const b = pins.find(x => x.id === pinId);
+  if (!a || !b) { cancelSwapTwo(true); showToast('ピンが見つかりません'); return; }
+  const na = getLabelNum(a.label), nb = getLabelNum(b.label);
+  if (na == null || nb == null) { cancelSwapTwo(true); showToast('番号のないピンは入れ替えできません'); return; }
+  pushUndo();
+  a.label = setLabelNum(a.label, nb);
+  b.label = setLabelNum(b.label, na);
+  const ia = pins.indexOf(a), ib = pins.indexOf(b);   // 配列位置も交換（配列順=番号順の維持）
+  pins[ia] = b; pins[ib] = a;
+  cancelSwapTwo(true);
+  saveToStorage();
+  showToast(`🔁 ${na}番 ⇄ ${nb}番 を入れ替えました（元に戻すは↩）`);
+}
+
+// R = 2本入替 開始/中止、Esc = 中止（並べ替えモード側のEsc処理とは独立）
+(function () {
+  function isTyping(e) {
+    if (e.isComposing || e.keyCode === 229) return true;
+    const t = e.target; if (!t) return false;
+    const tag = (t.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+  }
+  function overlayOpen() {
+    return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
+      .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (isTyping(e) || overlayOpen()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      toggleSwapTwoMode();
+    } else if (e.key === 'Escape' && swapTwoMode) {
+      e.preventDefault();
+      cancelSwapTwo();
+    }
+  });
+})();
+
 // --- なぞり並べ替えモード ---
 let traceReorderMode = false;
 let traceReorderPoints = [];
