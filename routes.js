@@ -590,3 +590,64 @@ function cleanupTraceEdit() {
     else if (k === 'Escape') { e.preventDefault(); cancelTrace(); }
   });
 })();
+
+
+// --- 🗒 書き込み一覧（ルート線／区切り線／目印）: 一覧から ズーム・削除 ---
+// 動機(2026-08-19): 細い線を右クリックで狙うのが面倒／間違えて引いたルート線が消せない。一覧なら確実。
+function openTraceList() {
+  const overlay = document.getElementById('result-modal');
+  const box = document.getElementById('result-content');
+  if (!overlay || !box) return;
+  const kindName = t => t.kind === 'divider' ? '区切り線' : t.kind === 'marker' ? '📍目印' : 'ルート線';
+  let html = `<h3 style="margin:0 0 8px;">🗒 書き込み一覧（${savedTraces.length}件）</h3>`;
+  if (!savedTraces.length) {
+    html += '<div style="color:#666;">書き込みはありません（L キー／✏️ルート線 で追加）</div>';
+  } else {
+    html += '<div style="font-size:12px;color:#666;margin-bottom:6px;">🔍=その場所へ / 🗑=削除（↩で戻せます）</div>';
+    savedTraces.forEach((t, i) => {
+      const n = t.points.length;
+      const desc = t.kind === 'marker' ? `${t.icon || '📌'} ${escapeHtml(t.label || '')}` :
+                   `${kindName(t)}（${n}点）`;
+      const sw = `<span style="display:inline-block;width:26px;height:6px;vertical-align:middle;margin-right:6px;background:${t.color || '#1976D2'};${t.kind === 'divider' ? 'background:repeating-linear-gradient(90deg,' + (t.color || '#212121') + ' 0 6px,transparent 6px 10px);' : ''}"></span>`;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #eee;">
+        <div style="flex:1;">${sw}${desc}</div>
+        <button onclick="focusTrace(${i})" style="padding:4px 10px;border:none;border-radius:6px;background:#1976D2;color:#fff;cursor:pointer;">🔍</button>
+        <button onclick="deleteTraceAt(${i})" style="padding:4px 10px;border:none;border-radius:6px;background:#f44336;color:#fff;cursor:pointer;">🗑</button>
+      </div>`;
+    });
+    html += `<div style="margin-top:10px;text-align:right;"><button onclick="deleteAllTraces()" style="padding:6px 12px;border:1px solid #f44336;border-radius:6px;background:#fff;color:#f44336;cursor:pointer;">🗑 全部削除</button></div>`;
+  }
+  box.innerHTML = html;
+  overlay.classList.add('show');
+  if (typeof closeToolbarMenus === 'function') closeToolbarMenus();
+}
+function focusTrace(i) {
+  const t = savedTraces[i]; if (!t) return;
+  const pts = t.points.map(p => [p.lat, p.lng]);
+  if (pts.length === 1) map.setView(pts[0], Math.max(map.getZoom(), 18));
+  else map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+  document.getElementById('result-modal').classList.remove('show');
+}
+function deleteTraceAt(i) {
+  const t = savedTraces[i]; if (!t) return;
+  const nm = t.kind === 'marker' ? `目印「${t.label || ''}」` : (t.kind === 'divider' ? '区切り線' : 'ルート線') + `（${t.points.length}点）`;
+  if (!confirm(`${nm} を削除しますか？`)) return;
+  if (traceEditMode) cancelTraceEdit();
+  pushUndo();
+  savedTraces.splice(i, 1);
+  redrawSavedTraces();
+  saveToStorage();
+  showToast('削除しました（↩で戻せます）');
+  openTraceList();
+}
+function deleteAllTraces() {
+  if (!savedTraces.length) return;
+  if (!confirm(`書き込み ${savedTraces.length} 件を全部削除しますか？（↩で戻せます）`)) return;
+  if (traceEditMode) cancelTraceEdit();
+  pushUndo();
+  savedTraces = [];
+  redrawSavedTraces();
+  saveToStorage();
+  showToast('書き込みを全部削除しました（↩で戻せます）');
+  openTraceList();
+}
