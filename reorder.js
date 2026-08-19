@@ -18,12 +18,10 @@ function relabelPins() {
 // → 入口で配列をラベル番号順（枝番はfloat・番号なしは末尾・同値は元の順＝安定）に並べ直して前提を成立させる。
 // ラベル文字列そのものは変えない（見た目・クラウド・old_noに影響なし）。
 function normalizePinOrderByLabel() {
-  const withIdx = pins.map((p, i) => ({ p, i, n: getLabelNum(p.label) }));
-  withIdx.sort((a, b) => {
-    const an = (a.n == null) ? Infinity : a.n;
-    const bn = (b.n == null) ? Infinity : b.n;
-    return (an - bn) || (a.i - b.i);
-  });
+  // 番号なし（label空／番号なしラベル）は「配列上の位置＝暗黙の番号 index+1」を持つ扱い（relabelPinsも表示も
+  // その前提）。末尾へ流すと以降の全番号が1つ詰まる回帰になる（監査#2）ので、暗黙番号をキーにして位置を保つ。
+  const withIdx = pins.map((p, i) => { const n = getLabelNum(p.label); return { p, i, n: (n == null) ? (i + 1) : n }; });
+  withIdx.sort((a, b) => (a.n - b.n) || (a.i - b.i));
   const changed = withIdx.some((x, i) => x.i !== i);
   if (changed) pins = withIdx.map(x => x.p);
   return changed;
@@ -205,14 +203,19 @@ function refreshReorderMarkers() {
   }
   markers = {};
 
-  const startNum = getReorderStartNum();
   const sz = getPinSize();
+  // 紫ピンの番号＝完了後の実番号（computeReorderResult と同じ計算）。入替モードはタップ順
+  let finalIdx = null;
+  if (!reorderSwapMode && reorderedPins.length) {
+    finalIdx = new Map(computeReorderResult().map((p, i) => [p.id, i + 1]));
+  }
 
-  // 並べ替え済みピン（紫、開始番号からの連番）
+  // 並べ替え済みピン（紫）
   reorderedPins.forEach((pin, i) => {
+    const shown = reorderSwapMode ? (i + 1) : ((finalIdx && finalIdx.get(pin.id)) || (getReorderStartNum() + i));
     const icon = L.divIcon({
       className: '',
-      html: `<div class="pin-icon reordered">${reorderSwapMode ? (i + 1) : (startNum + i)}</div>`,
+      html: `<div class="pin-icon reordered">${shown}</div>`,
       iconSize: [sz, sz],
       iconAnchor: [sz/2, sz/2]
     });
@@ -283,12 +286,52 @@ function toggleReorderSwapMode() {
     btn.style.background = 'rgba(255,255,255,0.3)';
     btn.style.color = 'white';
     startArea.style.display = '';
-    reorderAnchorSet = false;
-    reorderAnchorPinId = null;
+    // アンカーは開始番号欄から復元（取り込み済みが残っている時に index経路へ落ちないように・監査#8）
+    setReorderStartFromInput();
     showToast('通常モード: 開始番号を指定して並べ替え');
   }
   updateReorderCount();
   refreshReorderMarkers();
+}
+
+// 通常モードの「完了後の配列」を計算する純関数（pins は変更しない）。
+// finishReorder と refreshReorderMarkers（紫ピンの番号表示）が同じ関数を使うので、
+// 並べ替え中に見えている番号と完了後の番号が必ず一致する（監査#4: アンカーより前のピンを取り込むと表示がズレていた）。
+function computeReorderResult() {
+  const startNum = getReorderStartNum();
+  const insertIdx = startNum - 1;
+  const reorderedIds = new Set(reorderedPins.map(p => p.id));
+
+  // 🔒保留ピンは「元の位置(=今の番号)」に固定する。
+  // 手順: ①保留を一旦抜いた配列を作って並べ替えブロックを挿入 → ②保留を元のindexへ戻す。
+  //       ②は元index昇順に splice すれば、各ピンがちょうど元のindexに収まる。
+  const heldEntries = pins
+    .map((p, idx) => ({ pin: p, idx }))
+    .filter(x => reorderHeldIds.has(x.pin.id));
+
+  const rest = pins.filter(p => !reorderedIds.has(p.id) && !reorderHeldIds.has(p.id));
+  let clampedIdx;
+  const anchorPin = (reorderAnchorPinId != null) ? pins.find(p => p.id === reorderAnchorPinId) : null;
+  if (anchorPin && startNum > 1) {
+    // ★アンカー基準: ブロックは「アンカーピンの直後」。アンカー自身が取り込み/保留で rest に無ければ、
+    //   元の並びで手前へ遡って rest にいる最初のピンの直後（何も無ければ先頭）。
+    //   これで開始位置より前のピンを取り込んでも、後ろのピンがブロックの前へ滑り込まない。
+    let ref = null;
+    for (let i = pins.indexOf(anchorPin); i >= 0; i--) {
+      if (rest.includes(pins[i])) { ref = pins[i]; break; }
+    }
+    clampedIdx = ref ? rest.indexOf(ref) + 1 : 0;
+  } else {
+    // 開始番号のみ（アンカーピン無し／先頭指定）: 最終番号での位置。保留がその手前を占める分だけ rest 座標系では前にずれる
+    const heldBefore = heldEntries.filter(x => x.idx < insertIdx).length;
+    clampedIdx = Math.max(0, Math.min(insertIdx - heldBefore, rest.length));
+  }
+  rest.splice(clampedIdx, 0, ...reorderedPins);
+
+  heldEntries.forEach(({ pin, idx }) => {
+    rest.splice(Math.min(idx, rest.length), 0, pin);
+  });
+  return rest;
 }
 
 function finishReorder() {
@@ -307,41 +350,8 @@ function finishReorder() {
     });
     pins = newPins;
   } else {
-    // 通常モード: 開始番号の位置に挿入
-    const startNum = getReorderStartNum();
-    const insertIdx = startNum - 1;
-    const reorderedIds = new Set(reorderedPins.map(p => p.id));
-
-    // 🔒保留ピンは「元の位置(=今の番号)」に固定する。
-    // 手順: ①保留を一旦抜いた配列を作って並べ替えブロックを挿入 → ②保留を元のindexへ戻す。
-    //       ②は元index昇順に splice すれば、各ピンがちょうど元のindexに収まる。
-    const heldEntries = pins
-      .map((p, idx) => ({ pin: p, idx }))
-      .filter(x => reorderHeldIds.has(x.pin.id));
-
-    const rest = pins.filter(p => !reorderedIds.has(p.id) && !reorderHeldIds.has(p.id));
-    let clampedIdx;
-    const anchorPin = (reorderAnchorPinId != null) ? pins.find(p => p.id === reorderAnchorPinId) : null;
-    if (anchorPin && startNum > 1) {
-      // ★アンカー基準: ブロックは「アンカーピンの直後」。アンカー自身が取り込み/保留で rest に無ければ、
-      //   元の並びで手前へ遡って rest にいる最初のピンの直後（何も無ければ先頭）。
-      //   これで開始位置より前のピンを取り込んでも、後ろのピンがブロックの前へ滑り込まない。
-      let ref = null;
-      for (let i = pins.indexOf(anchorPin); i >= 0; i--) {
-        if (rest.includes(pins[i])) { ref = pins[i]; break; }
-      }
-      clampedIdx = ref ? rest.indexOf(ref) + 1 : 0;
-    } else {
-      // 開始番号のみ（アンカーピン無し／先頭指定）: 最終番号での位置。保留がその手前を占める分だけ rest 座標系では前にずれる
-      const heldBefore = heldEntries.filter(x => x.idx < insertIdx).length;
-      clampedIdx = Math.max(0, Math.min(insertIdx - heldBefore, rest.length));
-    }
-    rest.splice(clampedIdx, 0, ...reorderedPins);
-
-    heldEntries.forEach(({ pin, idx }) => {
-      rest.splice(Math.min(idx, rest.length), 0, pin);
-    });
-    pins = rest;
+    // 通常モード: 最終配列は computeReorderResult()（表示中の紫番号と同じ計算＝完了時と必ず一致）
+    pins = computeReorderResult();
   }
 
   // モード終了
@@ -499,6 +509,9 @@ function toggleTraceReorder() {
 
   // 地図のドラッグを無効化（なぞり用）
   map.dragging.disable();
+  // ピン上からなぞり始めるとピンがドラッグで動いてしまう（監査#7）→ なぞり中はマーカーのドラッグも無効化。
+  // 終了時は refreshAllMarkers() でマーカーが作り直される（draggable:true）ので戻す処理は不要
+  Object.values(markers).forEach(m => { if (m.dragging) m.dragging.disable(); });
 
   // マウス/タッチでなぞり
   map.getContainer().style.cursor = 'crosshair';
@@ -763,6 +776,11 @@ function handleConcatTap(pinId) {
     if (firstIdx === -1 || secondIdx === -1) {
       showToast('ピンが見つかりません');
       cancelConcat();
+      return;
+    }
+    // 逆方向（後半の始点が前半の終点より前）だと slice が重なりピンが複製される（監査#1）→ 断る
+    if (secondIdx <= firstIdx) {
+      showToast(`後半の始点は #${firstNum || (firstIdx + 1)} より後ろのピンを選んでください`);
       return;
     }
 

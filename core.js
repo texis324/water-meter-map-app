@@ -71,6 +71,8 @@ function pushUndo() {
 }
 
 function performUndo() {
+  // 並べ替え等のモード中に pins を丸ごと差し替えると、モードが持つ参照が死んで壊れた配列を保存する（監査#3）
+  if (typeof activeModeName === 'function' && activeModeName()) exitAllOtherModes();
   if (undoStack.length === 0) {
     showToast('戻す操作がありません');
     return;
@@ -95,6 +97,8 @@ function performUndo() {
 }
 
 function performRedo() {
+  // 並べ替え等のモード中に pins を丸ごと差し替えると、モードが持つ参照が死んで壊れた配列を保存する（監査#3）
+  if (typeof activeModeName === 'function' && activeModeName()) exitAllOtherModes();
   if (redoStack.length === 0) {
     showToast('やり直す操作がありません');
     return;
@@ -259,16 +263,21 @@ map.on('contextmenu', function(e) {
     saveToStorage();
 
     if (reorderMode && reorderAnchorSet) {
-      // 並べ替え済みリストに直接追加
+      // 並べ替え済みリストに直接追加（Backspace/Zで1本として戻せるよう履歴にも積む・監査#5b）
       reorderedPins.push(pin);
+      reorderTakeHistory.push(1);
       updateReorderCount();
       refreshReorderMarkers();
       const num = getReorderStartNum() + reorderedPins.length - 1;
-      showToast(`ピンを追加 → ${num}番に配置`);
-    } else {
-      // アンカー未設定 or なぞり中: 未処理リストに追加
+      showToast(`ピンを追加 → ${num}番あたりに配置（完了時に確定）`);
+    } else if (reorderMode) {
+      // アンカー未設定: 未処理リストに追加
       remainingPins.push(pin);
       refreshReorderMarkers();
+      showToast('ピンを追加しました');
+    } else {
+      // なぞり中: reorder用配列には触らない（触ると refreshReorderMarkers が全ピンを消す・監査#5a）
+      refreshAllMarkers();
       showToast('ピンを追加しました');
     }
   } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode && !multiMoveMode) {
@@ -533,6 +542,7 @@ function createMarker(pin) {
         const idx = pins.indexOf(p);
         if (idx !== -1) pins.splice(idx, 1);
       });
+      cleanupGroupsAfterDelete(dupes.map(p => p.id));
       refreshAllMarkers();
       saveToStorage();
       updatePinCount();
@@ -550,6 +560,7 @@ function createMarker(pin) {
         map.removeLayer(markers[pin.id]);
         delete markers[pin.id];
         pins.splice(pins.indexOf(pin), 1);
+        cleanupGroupsAfterDelete([pin.id]);
         refreshAllMarkers();
         saveToStorage();
         updatePinCount();
@@ -726,6 +737,13 @@ function savePin() {
   showToast('保存しました');
 }
 
+// 削除したピンをグループから外し、1件以下になったグループは畳む（監査#6: 縮小グループの代表を消すと残りが全部非表示になった）
+function cleanupGroupsAfterDelete(deletedIds) {
+  const del = new Set(deletedIds);
+  pinGroups.forEach(g => { g.pinIds = g.pinIds.filter(id => !del.has(id)); });
+  pinGroups = pinGroups.filter(g => g.pinIds.length >= 2);
+}
+
 function deletePin() {
   const idx = pins.findIndex(p => p.id === editingPinId);
   if (idx === -1) return;
@@ -733,6 +751,7 @@ function deletePin() {
   map.removeLayer(markers[editingPinId]);
   delete markers[editingPinId];
   pins.splice(idx, 1);
+  cleanupGroupsAfterDelete([editingPinId]);
 
   // 番号を振り直す
   refreshAllMarkers();
@@ -1116,7 +1135,7 @@ function syncEndpointsButton() {
 
 // --- モバイル/PC共通: Escキー & 背景タップでモーダルを閉じる ---
 (function () {
-  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal'];
+  var overlayIds = ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal'];
   overlayIds.forEach(function (id) {
     var el = document.getElementById(id);
     if (!el) return;

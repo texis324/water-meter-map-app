@@ -48,6 +48,8 @@ function resolveSnapshotDate(parsedData, filename) {
 // opts.fit: false で全ピンズームをしない（既定は実行）
 function applyDataset(data, opts) {
   opts = opts || {};
+  // 並べ替え等のモード中にデータセットを差し替えると、モードの参照が死んで壊れた配列を保存し得る（監査#3）
+  if (typeof activeModeName === 'function' && activeModeName()) exitAllOtherModes();
   pins.forEach(p => { if (markers[p.id]) map.removeLayer(markers[p.id]); });
   pins = []; markers = {};
   nextId = data.nextId || 1;
