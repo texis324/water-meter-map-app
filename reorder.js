@@ -816,7 +816,7 @@ function handleConcatTap(pinId) {
     // 1つ目: 前半の終点
     concatFirst = pin;
     const numText = pinNum ? `#${pinNum}` : `id=${pin.id}`;
-    document.getElementById('concat-status').textContent = `${numText} を選択済み → 次は後半の始点をタップ`;
+    document.getElementById('concat-status').textContent = `${numText} を選択済み → 次をタップ（後ろの番号=間を末尾へ／前の番号=その1本をここの直後へ）`;
     // ハイライト
     const m = markers[pin.id];
     if (m) {
@@ -826,7 +826,7 @@ function handleConcatTap(pinId) {
         if (icon) { icon.style.background = '#E91E63'; icon.style.transition = 'background 0.15s'; }
       }
     }
-    showToast(`${numText} の後ろに繋げる先をタップ`);
+    showToast(`${numText} の次に来るピンをタップ（後ろの番号→間を末尾へ／前の番号→その1本をここへ）`);
   } else {
     // 2つ目: 後半の始点
     if (pin.id === concatFirst.id) {
@@ -846,11 +846,31 @@ function handleConcatTap(pinId) {
       cancelConcat();
       return;
     }
-    // 逆方向（後半の始点が前半の終点より前）だと slice が重なりピンが複製される（監査#1）→ 断る
-    if (secondIdx <= firstIdx) {
-      showToast(`後半の始点は #${firstNum || (firstIdx + 1)} より後ろのピンを選んでください`);
+    // 逆方向（2本目が1本目より前の番号）: 「2本目を1本目の直後へ移す」（2026-08-19 Tench要望「次の番号が必ず大きい制約を外して」）
+    // 例: D → 142 → 86 で 86 が 142 の直後に来る（87〜142 は1つ繰り上がる）。同一座標の団子(🏢)は丸ごと移す。
+    // ※旧実装は逆方向だと slice が重なりピンが複製された（監査#1）ので、こちらは別ロジックで安全に処理する
+    if (secondIdx < firstIdx) {
+      const stack = pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);   // 同一座標=同じ建物は丸ごと
+      const moving = stack.length > 1 ? stack.slice().sort((a, b) => pins.indexOf(a) - pins.indexOf(b)) : [pin];
+      const movingIds = new Set(moving.map(p => p.id));
+      if (movingIds.has(concatFirst.id)) { showToast('同じ場所（建物）のピン同士は連結できません'); return; }
+      pushUndo();
+      const rest = pins.filter(p => !movingIds.has(p.id));
+      const at = rest.indexOf(concatFirst) + 1;
+      rest.splice(at, 0, ...moving);
+      pins = rest;
+      relabelPins();
+      const numA = firstNum || (firstIdx + 1);
+      const numB = secondNum || (secondIdx + 1);
+      showToast(moving.length > 1
+        ? `🏢 #${numB} の建物 ${moving.length}本を #${numA} の直後へ移動しました`
+        : `#${numB} を #${numA} の直後へ移動しました（間の番号は1つ繰り上がり）`);
+      saveToStorage();
+      updatePinCount();
+      cancelConcat();
       return;
     }
+    if (secondIdx === firstIdx) { showToast('同じピンです'); return; }
 
     pushUndo();
 
