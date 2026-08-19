@@ -171,6 +171,32 @@ function changeTraceOpacity(val) {
 }
 
 // --- ルート線モード ---
+// 線の種類（2026-08-19 Tench要望「区切りのために線を描きたい」）:
+//   route   = 従来のルート線（実線・自動配色）
+//   divider = 区切り線（破線・選んだ色。順路のブロック境界など、地図上のメモ用）
+// savedTraces[i] = { points, color, kind } （kind 無し = 旧データ = route 扱い）
+function getTraceKind() {
+  const el = document.getElementById('trace-kind');
+  return (el && el.value === 'divider') ? 'divider' : 'route';
+}
+function getTraceDrawColor() {
+  const el = document.getElementById('trace-color');
+  return (el && el.value) ? el.value : '#212121';
+}
+function traceStyleFor(kind, color, weightRoute, weightDivider) {
+  return kind === 'divider'
+    ? { color: color, weight: weightDivider, opacity: 0.95, dashArray: '10, 8', lineCap: 'butt' }
+    : { color: color, weight: weightRoute, opacity: getTraceOpacity() };
+}
+// バナーの種類/色を変えたら描画中の線にも反映
+function updateTraceStyleLive() {
+  if (!traceMode || !traceLine) return;
+  const kind = getTraceKind();
+  const color = kind === 'divider' ? getTraceDrawColor() : '#1976D2';
+  traceLine.setStyle(traceStyleFor(kind, color, 4, 4));
+  traceMarkers.forEach(m => m.setStyle({ color: color, fillColor: color }));
+}
+
 function toggleTraceMode() {
   if (traceMode) {
     finishTrace();
@@ -186,7 +212,20 @@ function toggleTraceMode() {
   document.getElementById('btn-mode').style.display = 'none';
   document.getElementById('trace-banner').classList.add('show');
   updateTraceCount();
-  showToast('タップでルート線を引いてください');
+  showToast(getTraceKind() === 'divider' ? 'タップで区切り線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）'
+                                        : 'タップでルート線を引いてください（Enter=完了 / Backspace=戻す / Esc=取消）');
+}
+
+// 取消（描きかけを捨てて終了）
+function cancelTrace() {
+  if (!traceMode) return;
+  const n = tracePoints.length;
+  if (n > 0 && !confirm(`描きかけの線（${n}点）を捨てて終了しますか？`)) return;
+  tracePoints = [];
+  traceMarkers.forEach(m => map.removeLayer(m));
+  traceMarkers = [];
+  if (traceLine) { map.removeLayer(traceLine); traceLine = null; }
+  finishTrace();
 }
 
 function handleTraceTap(latlng) {
@@ -194,11 +233,13 @@ function handleTraceTap(latlng) {
   tracePoints.push(point);
   updateTraceCount();
 
+  const kind = getTraceKind();
+  const drawColor = kind === 'divider' ? getTraceDrawColor() : '#1976D2';
   // 小さい丸マーカーを追加
   const circleMarker = L.circleMarker([point.lat, point.lng], {
     radius: 5,
-    color: '#1976D2',
-    fillColor: '#1976D2',
+    color: drawColor,
+    fillColor: drawColor,
     fillOpacity: 0.8,
     weight: 2
   }).addTo(map);
@@ -209,11 +250,7 @@ function handleTraceTap(latlng) {
   if (traceLine) {
     traceLine.setLatLngs(coords);
   } else {
-    traceLine = L.polyline(coords, {
-      color: '#1976D2',
-      weight: 4,
-      opacity: getTraceOpacity()
-    }).addTo(map);
+    traceLine = L.polyline(coords, traceStyleFor(kind, drawColor, 4, 4)).addTo(map);
   }
 }
 
@@ -248,9 +285,14 @@ function finishTrace() {
   // なぞったルートがあれば保存
   if (tracePoints.length >= 2) {
     pushUndo();
-    const colors = ['#E91E63', '#FF9800', '#9C27B0', '#009688', '#FF5722', '#3F51B5'];
-    const colorIdx = savedTraces.length % colors.length;
-    savedTraces.push({ points: [...tracePoints], color: colors[colorIdx] });
+    const kind = getTraceKind();
+    if (kind === 'divider') {
+      savedTraces.push({ points: [...tracePoints], color: getTraceDrawColor(), kind: 'divider' });
+    } else {
+      const colors = ['#E91E63', '#FF9800', '#9C27B0', '#009688', '#FF5722', '#3F51B5'];
+      const colorIdx = savedTraces.filter(t => t.kind !== 'divider').length % colors.length;
+      savedTraces.push({ points: [...tracePoints], color: colors[colorIdx], kind: 'route' });
+    }
 
     // 作業用のラインとマーカーを消して、保存用ラインとして再描画
     traceMarkers.forEach(m => map.removeLayer(m));
@@ -259,7 +301,7 @@ function finishTrace() {
 
     redrawSavedTraces();
     saveToStorage();
-    showToast('ルートを保存しました');
+    showToast(getTraceKind() === 'divider' ? '区切り線を保存しました' : 'ルートを保存しました');
   } else {
     // ポイントが足りない場合はクリーンアップだけ
     traceMarkers.forEach(m => map.removeLayer(m));
@@ -282,11 +324,7 @@ function redrawSavedTraces() {
   savedTraceLines = [];
   savedTraces.forEach((trace, traceIdx) => {
     const coords = trace.points.map(p => [p.lat, p.lng]);
-    const line = L.polyline(coords, {
-      color: trace.color,
-      weight: 6,
-      opacity: getTraceOpacity()
-    }).addTo(map);
+    const line = L.polyline(coords, traceStyleFor(trace.kind, trace.color, 6, 5)).addTo(map);
     // タップで編集モードに入る
     line.on('click', function(e) {
       L.DomEvent.stopPropagation(e);
@@ -297,7 +335,7 @@ function redrawSavedTraces() {
     line.on('contextmenu', function(e) {
       L.DomEvent.stopPropagation(e);
       if (traceEditMode) return;
-      if (confirm('このルート線を削除しますか？')) {
+      if (confirm(trace.kind === 'divider' ? 'この区切り線を削除しますか？' : 'このルート線を削除しますか？')) {
         pushUndo();
         savedTraces.splice(traceIdx, 1);
         redrawSavedTraces();
@@ -469,3 +507,35 @@ function cleanupTraceEdit() {
   document.getElementById('btn-trace').style.display = '';
   document.getElementById('trace-edit-banner').classList.remove('show');
 }
+
+
+// --- ⌨ ルート線/区切り線のキーボード（PC作業用・2026-08-19） ---
+// L = 開始（モード中はEnterと同じ「完了」）／ Enter = 完了 ／ Backspace・Z = 1点戻す ／ Esc = 取消
+(function () {
+  function isTyping(e) {
+    if (e.isComposing || e.keyCode === 229) return true;
+    const t = e.target; if (!t) return false;
+    const tag = (t.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+  }
+  function overlayOpen() {
+    return ['pin-modal', 'help-modal', 'sync-modal', 'result-modal', 'place-modal', 'legend-modal', 'submit-modal']
+      .some(function (id) { var el = document.getElementById(id); return el && el.classList.contains('show'); });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (isTyping(e) || overlayOpen()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (!traceMode) {
+      if (k !== 'l' && k !== 'L') return;
+      e.preventDefault();
+      const busy = typeof activeModeName === 'function' ? activeModeName('trace') : null;
+      if (busy) { showToast(`「${(typeof MODE_LABELS !== 'undefined' && MODE_LABELS[busy]) || busy}」モード中です。先に終了してください`); return; }
+      toggleTraceMode();
+      return;
+    }
+    if (k === 'l' || k === 'L' || k === 'Enter') { e.preventDefault(); finishTrace(); }
+    else if (k === 'Backspace' || k === 'z' || k === 'Z') { e.preventDefault(); undoTrace(); }
+    else if (k === 'Escape') { e.preventDefault(); cancelTrace(); }
+  });
+})();
