@@ -140,6 +140,8 @@ function getModeRegistry() {
     // multiMoveの移動はdragendごとに保存済みなので、モード切替では確定終了(finish)する（勝手にundoしない）
     { name: 'multiMove',    flag: () => typeof multiMoveMode !== 'undefined' && multiMoveMode,         exit: () => finishMultiMove() },
     { name: 'swapTwo',      flag: () => typeof swapTwoMode !== 'undefined' && swapTwoMode,             exit: () => cancelSwapTwo(true) },
+    // gatherは囲んだ瞬間に保存済みなので、モード切替では終了するだけ（失う作業が無い）
+    { name: 'gather',       flag: () => typeof gatherMode !== 'undefined' && gatherMode,               exit: () => finishGather() },
   ];
 }
 
@@ -153,7 +155,7 @@ function activeModeName(exceptName) {
 const MODE_LABELS = {
   stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
   group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
-  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める',
 };
 
 function exitAllOtherModes(exceptName) {
@@ -280,7 +282,8 @@ map.on('contextmenu', function(e) {
       refreshAllMarkers();
       showToast('ピンを追加しました');
     }
-  } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode && !multiMoveMode) {
+  } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode && !multiMoveMode &&
+             !(typeof gatherMode !== 'undefined' && gatherMode)) {
     // 通常時（ピン追加/閲覧モード）: 指定番号のピンをこの地点へパッと置く
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
@@ -555,6 +558,7 @@ function createMarker(pin) {
         // モード切替後にタイマーが発火して誤削除するのを防ぐ
         if (stampMode || concatMode || reorderMode || reorderSwapMode || groupMode ||
             traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode ||
+            (typeof gatherMode !== 'undefined' && gatherMode) ||
             (typeof swapTwoMode !== 'undefined' && swapTwoMode) || !pinMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
@@ -594,7 +598,8 @@ function createMarker(pin) {
     // 閲覧モード(pinMode OFF かつ他モード全OFF)では位置を戻して何も変更しない
     // — 地図パンのつもりで指がピンに乗った時の誤移動＋自動push事故防止
     if (!pinMode && !stampMode && !reorderMode && !traceReorderMode && !concatMode &&
-        !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode) {
+        !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode &&
+        !(typeof gatherMode !== 'undefined' && gatherMode)) {
       e.target.setLatLng([pin.lat, pin.lng]);
       showToast('🔒 閲覧モード中はピンを移動できません');
       return;
