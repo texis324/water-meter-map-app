@@ -455,7 +455,9 @@ function handleSwapTwoTap(pinId, evt) {
     const icon = el && el.querySelector('.pin-icon');
     if (icon) icon.classList.add('swap-first');
     const p = pins.find(x => x.id === pinId);
-    showToast(`${getLabelNum(p && p.label) ?? '?'}番を選択 → 終点をタップで範囲反転（Shift+タップ=2本だけ入替）`);
+    const st = swapStackRunAt(pins.indexOf(p));
+    const stTxt = (st.e > st.s) ? `（団子${st.e - st.s + 1}本）` : '';
+    showToast(`${getLabelNum(p && p.label) ?? '?'}番${stTxt}を選択 → 終点をタップで範囲反転（Shift+タップ=入替${stTxt ? '・団子は丸ごと' : ''}）`);
     return;
   }
   if (pinId === swapTwoFirstId) {          // 同じピンをもう一度＝選択解除
@@ -472,15 +474,31 @@ function handleSwapTwoTap(pinId, evt) {
   const shift = !!(evt && (evt.shiftKey || (evt.originalEvent && evt.originalEvent.shiftKey)));
   const ia = pins.indexOf(a), ib = pins.indexOf(b);
   const lo = Math.min(ia, ib), hi = Math.max(ia, ib);
+  // 🏢団子＝入替の単位（2026-08-21 Tench要望「Rで2つの塊ピンを押したらちょうど入れ替わるように」）。
+  // タップしたピンが同一座標の連続区間（アパート/マンションの各室）に属していれば、その区間を丸ごと1ブロックとして扱う。
+  // 単独ピンはサイズ1のブロック＝従来の2本入替と同じ結果になる。
+  const A0 = swapStackRunAt(ia), B0 = swapStackRunAt(ib);
+  if (A0.s <= B0.e && B0.s <= A0.e) {
+    cancelSwapTwo(true);
+    showToast('同じ建物（団子）の中です。入替は別の建物/ピンをタップしてください');
+    return;
+  }
+  const A = (A0.s < B0.s) ? A0 : B0, B = (A0.s < B0.s) ? B0 : A0;   // A=前側ブロック・B=後側ブロック
+  const adjacent = (B.s === A.e + 1);
   pushUndo();
-  if (shift || hi - lo === 1) {
-    // 2本だけ入替（隣同士は反転と同じ結果なのでこちらで十分）
-    a.label = setLabelNum(a.label, nb);
-    b.label = setLabelNum(b.label, na);
-    pins[ia] = b; pins[ib] = a;   // 配列位置も交換（配列順=番号順の維持）
+  if (shift || adjacent) {
+    // ブロック入替: [A][間][B] → [B][間][A]。番号は位置に対して据え置き（枝番・欠番のパターンは保たれる）
+    const span = pins.slice(A.s, B.e + 1);
+    const nums = span.map(p => getLabelNum(p.label));
+    const blkA = pins.slice(A.s, A.e + 1), mid = pins.slice(A.e + 1, B.s), blkB = pins.slice(B.s, B.e + 1);
+    const next = blkB.concat(mid, blkA);
+    next.forEach((p, k) => { if (nums[k] != null) p.label = setLabelNum(p.label, nums[k]); });
+    pins.splice(A.s, span.length, ...next);
     cancelSwapTwo(true);
     saveToStorage();
-    showToast(`🔁 ${na}番 ⇄ ${nb}番 を入れ替えました（元に戻すは↩）`);
+    const lab = (blk) => blk.length > 1 ? `${blk.length}本(団子)` : `${getLabelNum(blk[0].label)}番`;
+    if (blkA.length === 1 && blkB.length === 1) showToast(`🔁 ${na}番 ⇄ ${nb}番 を入れ替えました（元に戻すは↩）`);
+    else showToast(`🔁 ${lab(blkA)} ⇄ ${lab(blkB)} を入れ替えました → ${nums[0]}〜${nums[nums.length - 1]}（元に戻すは↩）`);
     return;
   }
   // 範囲反転: lo〜hi の区間を逆順にし、番号は「位置」に対して据え置き（枝番・欠番のパターンは保たれる）
@@ -493,6 +511,16 @@ function handleSwapTwoTap(pinId, evt) {
   cancelSwapTwo(true);
   saveToStorage();
   showToast(`↔ ${from}〜${to} の ${seg.length}本を反転しました（元に戻すは↩）`);
+}
+
+// タップしたピンが属する「団子」＝配列上で連続する同一座標の区間 [s,e]（単独なら s===e）
+function swapStackRunAt(i) {
+  const p = pins[i];
+  let s = i, e = i;
+  if (!p) return { s, e };
+  while (s > 0 && pins[s - 1].lat === p.lat && pins[s - 1].lng === p.lng) s--;
+  while (e < pins.length - 1 && pins[e + 1].lat === p.lat && pins[e + 1].lng === p.lng) e++;
+  return { s, e };
 }
 
 // R = 2本入替 開始/中止、Esc = 中止（並べ替えモード側のEsc処理とは独立）
