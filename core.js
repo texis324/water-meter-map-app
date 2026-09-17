@@ -345,7 +345,10 @@ function renderQuickPlaceMatches() {
   if (!all.length) { box.innerHTML = '<div class="place-nohit">見つかりません</div>'; return; }
   const LIMIT = 40;
   const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m) + 'm';
-  box.innerHTML = all.slice(0, LIMIT).map(p => {
+  // 2本以上なら「全部ここに重ねる」ボタン（Enterと同じ動作）。集合住宅名を打って建物ごと呼ぶ用
+  const allBtn = all.length > 1
+    ? `<button type="button" id="place-all-btn" class="place-all-btn">📦 この ${all.length}本をここに重ねる（Enter）</button>` : '';
+  box.innerHTML = allBtn + all.slice(0, LIMIT).map(p => {
     const n = getLabelNum(p.label);
     const dist = quickPlaceLatLng ? map.distance(quickPlaceLatLng, [p.lat, p.lng]) : null;
     return `<div class="stack-row" data-pin-id="${p.id}">` +
@@ -361,17 +364,44 @@ function renderQuickPlaceMatches() {
       if (pin) moveQuickPlacePin(pin);
     });
   });
+  const ab = document.getElementById('place-all-btn');
+  if (ab) ab.addEventListener('click', () => moveQuickPlaceAll(quickPlaceMatches(nameEl.value)));
 }
 
-// 名前欄のEnter: 候補がちょうど1件ならそれを置く。IME変換確定のEnterでは動かさない
+// 名前欄のEnter: 候補を全部ここへ（1件ならその1本、2件以上は確認のうえ1点に重ねる）。
+// IME変換確定のEnterでは動かさない
 function quickPlaceNameKey(e) {
   if (e.key !== 'Enter') return;
   if (e.isComposing || e.keyCode === 229) return;
   e.preventDefault();
   const all = quickPlaceMatches(document.getElementById('place-name').value);
-  if (all.length === 1) moveQuickPlacePin(all[0]);
-  else if (all.length > 1) showToast(`候補が${all.length}件あります。タップで選んでください`);
-  else showToast('見つかりません');
+  if (!all.length) { showToast('見つかりません'); return; }
+  moveQuickPlaceAll(all);
+}
+
+// 候補の全ピンをクイック配置の地点へ「1点に重ねて」移動（Tench要望 2026-09-17
+// 「集合住宅名を入れてEnterすると、その建物のピンがすべて入るように」）。
+// ★人名(例: 中川)で打つと無関係な家がまとめて動くので、2本以上は本数と番号範囲を出して必ず確認する。
+//   表示は40件で切っているが、動かすのは一致した全件（確認文の本数が正）。1回の↩戻すで全部戻る。
+function moveQuickPlaceAll(list) {
+  if (!quickPlaceLatLng || !list.length) return;
+  if (list.length === 1) { moveQuickPlacePin(list[0]); return; }
+  const q = document.getElementById('place-name').value.trim();
+  const nums = list.map(p => getLabelNum(p.label)).filter(n => n !== null);
+  const range = nums.length ? `（${formatNumRanges(nums)}）` : '';
+  if (!confirm(`「${q}」に一致する ${list.length}本${range}を、ここへ1点に重ねて移動します。\nよろしいですか？`)) return;
+  let lat = quickPlaceLatLng.lat, lng = quickPlaceLatLng.lng;
+  if (typeof snapToReference === 'function') {
+    const s = snapToReference(lat, lng);
+    lat = s.lat; lng = s.lng;
+  }
+  pushUndo();
+  list.forEach(p => { p.lat = lat; p.lng = lng; });
+  refreshAllMarkers();
+  saveToStorage();
+  updatePinCount();
+  showToast(`📦 「${q.slice(0, 12)}」${list.length}本をここに重ねました`);
+  closeQuickPlace();
 }
 
 // 1本のピンをクイック配置の地点へ移動（番号指定・名前指定の共通処理）

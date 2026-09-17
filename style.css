@@ -239,6 +239,8 @@ body.dark .stack-txt { color: #ddd; }
 /* 📌クイック配置の名前検索候補（行は .stack-row を流用） */
 #place-matches { max-height: 36vh; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 6px; font-size: 13px; line-height: 1.35; }
 .place-nohit { color: #999; font-size: 12px; padding: 6px 4px; }
+.place-all-btn { width: 100%; margin: 0 0 6px; padding: 8px; border: none; border-radius: 6px; background: #7B1FA2; color: #fff; font-weight: bold; font-size: 13px; cursor: pointer; position: sticky; top: 0; z-index: 1; }
+.place-all-btn:hover { background: #6A1B9A; }
 
 /* 並べ替え済みピン */
 .pin-icon.reordered {
