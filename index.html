@@ -116,6 +116,7 @@
 <div id="lasso-delete-banner">🗑️ マウスドラッグで囲んで選択 (<span id="lasso-delete-count">0</span>件選択) <button onclick="executeLassoDelete()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:#f44336;color:white;font-weight:bold;cursor:pointer;">削除</button> <button onclick="cancelLassoDeleteMode()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">取消</button></div>
 
 <div id="gather-banner">🎯 1箇所に集める: ピンを囲むと同じ場所に重なります (<span id="gather-count">0</span>箇所済) <span id="gather-keyhint" style="font-size:11px;opacity:0.85;margin-left:6px;">⌨ Enter/Esc/G=終了・↩で1囲みずつ戻す</span> <button onclick="finishGather()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#3949AB;font-weight:bold;cursor:pointer;">終了</button></div>
+<div id="stack-move-banner">📤 <b id="stack-move-desc"></b> の<b>置き先を地図でクリック</b> <span style="font-size:11px;opacity:0.9;margin-left:6px;">ピンをクリック=そのピンに重ねる／地図は動かせます／Esc=取消</span> <button onclick="cancelStackMove()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#4527A0;font-weight:bold;cursor:pointer;">取消</button></div>
 <div id="next-pick-banner">👆 <b>一つ前のピン</b>をタップ → その<b>次の番号</b>のピンが 📌 の場所に置かれます <span style="font-size:11px;opacity:0.9;margin-left:6px;">団子=建物の次の家／Shift+タップ=前の番号／別の場所を右クリック=置き先変更／Esc=取消</span> <button onclick="cancelNextPick()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#00695C;font-weight:bold;cursor:pointer;">取消</button></div>
 <div id="bulk-color-banner">🎨 まとめて色変更: <span id="bulk-color-swatches"></span> <span id="bulk-color-name" style="margin:0 6px;"></span>→ ピンを<b>囲む</b>か<b>タップ</b>（団子は丸ごと） (<span id="bulk-color-count">0</span>回済) <span id="bulk-color-keyhint" style="font-size:11px;opacity:0.85;margin-left:6px;">⌨ Enter/Esc/C=終了・↩で1回ずつ戻す</span> <button onclick="finishBulkColor()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#AD1457;font-weight:bold;cursor:pointer;">完了</button></div>
 <div id="multi-move-banner">🖐 まとめて移動: 囲むかタップで選択 (<span id="multi-move-count">0</span>件) → ✥をドラッグ <button onclick="finishMultiMove()" style="margin-left:8px;padding:4px 12px;border:none;border-radius:4px;background:white;color:#00897B;font-weight:bold;cursor:pointer;">完了</button> <button onclick="cancelMultiMove()" style="margin-left:4px;padding:4px 12px;border:none;border-radius:4px;background:rgba(255,255,255,0.3);color:white;cursor:pointer;">移動を取消</button></div>
@@ -186,7 +187,7 @@
         <div class="help-desc">
           <b>左クリック</b>: ピン削除（即時）<br>
           <b>ダブルクリック</b>: 同一座標ピン全消去 / グループ展開・縮小<br>
-          <b>右クリック（スマホ長押し）</b>: ピンの詳細編集（ラベル・メモ・色）。<b>重なっているピン（団子）なら、先にその場所の全ピン一覧</b>が番号順に出る → 行をタップでそのピンの詳細へ<br>
+          <b>右クリック（スマホ長押し）</b>: ピンの詳細編集（ラベル・メモ・色）。<b>重なっているピン（団子）なら、先にその場所の全ピン一覧</b>が番号順に出る → 行をタップでそのピンの詳細へ。<b>📤 行をドラッグして地図に落とす</b>とそのピンだけ引き出せる（別のピンの上に落とすとそのピンにぴったり重なる）。<b>☑していくつか選んで</b>ドラッグ、または「📤 選んだN本を外へ」→置き先をクリックでまとめて外へ（Shift+クリックで範囲選択・↩で戻せる）<br>
           <b>地図ダブルクリック</b>: Googleストリートビューを開く<br>
           <b>地図右クリック（スマホ長押し）</b>: 📌指定番号のピンをそこへパッと移動（無ければ新規作成）。「12〜25」のように範囲指定すると番号帯を一気に召喚。<b>番号が分からなければ下の欄に名前・苗字・番地を打つ</b>→候補が出るのでタップでそのピンをそこへ移動（スペース抜き・ひらがな/カタカナ違いでも当たる）。<b>Enter＝候補を全部そこへ</b>：1件ならその1本、<b>集合住宅名（例: アルタイル）なら確認のうえ建物の全室を1点に重ねて移動</b>（📦ボタンも同じ。↩戻す1回で全部戻る）。<b>👆 前のピンをタップ</b>：「ここにピンが無い」と気づいたら右クリック→このボタン→地図の<b>一つ前のピンをタップ</b>＝その<b>次の番号</b>のピンがそこへ移動（団子をタップ＝建物の次の家・Shift+タップ＝前の番号・<b>Shift+右クリック</b>ならモーダルを飛ばして直行・Esc＝取消）<br>
           <b>ドラッグ</b>: ピンの位置を移動
@@ -320,6 +321,7 @@
 <script src="gather.js"></script>
 <script src="bulk-color.js"></script>
 <script src="next-pick.js"></script>
+<script src="stack-move.js"></script>
 <script src="reference-pins.js"></script>
 <script src="core.js"></script>
 <script src="sync.js"></script>

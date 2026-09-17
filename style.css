@@ -497,6 +497,34 @@ body.dark .stack-txt { color: #ddd; }
 body.dark .stack-colors { border-top-color: #555; }
 body.dark .stack-colors-cap { color: #aaa; }
 
+/* 📤 団子からピンを引き出す（stack-move.js） */
+.stack-popup .stack-row { user-select: none; -webkit-user-select: none; }
+.stack-chk, .stack-chk-all { width: 15px; height: 15px; margin: 2px 2px 0 0; flex-shrink: 0; cursor: pointer; accent-color: #5E35B1; }
+.stack-row-checked { background: #EDE7F6; }
+.stack-row-checked:hover { background: #D1C4E9; }
+.stack-move { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; margin-top: 4px; border-top: 1px solid #ddd; }
+.stack-all { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: #555; cursor: pointer; white-space: nowrap; }
+.stack-move-btn { flex: 1; padding: 6px 8px; border: none; border-radius: 5px; background: #5E35B1; color: #fff; font-weight: bold; font-size: 12px; cursor: pointer; }
+.stack-move-btn:hover { background: #4527A0; }
+.stack-move-btn:disabled { background: #bbb; cursor: default; }
+.stack-ghost {
+  position: fixed; z-index: 5000; pointer-events: none; white-space: nowrap;
+  padding: 5px 10px; border-radius: 14px; background: #5E35B1; color: #fff;
+  font-size: 13px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+}
+body.stack-dragging, body.stack-dragging * { cursor: grabbing !important; }
+#stack-move-banner {
+  display: none; position: fixed; top: 0; left: 0; right: 0;
+  background: #4527A0; color: white; text-align: center; padding: 8px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  z-index: 1500; font-size: 14px;
+}
+#stack-move-banner.show { display: block; }
+body.dark .stack-row-checked { background: #45377a; }
+body.dark .stack-row-checked:hover { background: #55459a; }
+body.dark .stack-move { border-top-color: #555; }
+body.dark .stack-all { color: #bbb; }
+
 /* 古いスナップショット警告バナー */
 #stale-snapshot-banner {
   display: none;

@@ -146,6 +146,8 @@ function getModeRegistry() {
     { name: 'bulkColor',    flag: () => typeof bulkColorMode !== 'undefined' && bulkColorMode,         exit: () => finishBulkColor() },
     // nextPickは「前のピンをタップ待ち」の一時状態。何も変更していないので黙って取消
     { name: 'nextPick',     flag: () => typeof nextPickMode !== 'undefined' && nextPickMode,           exit: () => cancelNextPick(true) },
+    // stackMoveも「置き先クリック待ち」の一時状態。まだ何も動かしていないので黙って取消
+    { name: 'stackMove',    flag: () => typeof stackMoveMode !== 'undefined' && stackMoveMode,         exit: () => cancelStackMove(true) },
   ];
 }
 
@@ -159,7 +161,7 @@ function activeModeName(exceptName) {
 const MODE_LABELS = {
   stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
   group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
-  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める', bulkColor: 'まとめて色変更', nextPick: '前のピンをタップ',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める', bulkColor: 'まとめて色変更', nextPick: '前のピンをタップ', stackMove: '団子から外へ',
 };
 
 function exitAllOtherModes(exceptName) {
@@ -245,6 +247,8 @@ if (pins.length === 0 && navigator.geolocation) {
 // --- 地図タップ ---
 map.on('click', function(e) {
   if (typeof nextPickMode !== 'undefined' && nextPickMode) { showToast('👆 地図ではなく「一つ前のピン」をタップしてください（Esc=取消）'); return; }
+  // 📤団子から外へ: クリックした場所が置き先
+  if (typeof stackMoveMode !== 'undefined' && stackMoveMode) { stackMovePlace(e.latlng, null); return; }
   if (traceEditMode) return;
   if (traceMode) {
     handleTraceTap(e.latlng);
@@ -272,6 +276,11 @@ map.on('contextmenu', function(e) {
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
     nextPickRetarget(e.latlng);
+    return;
+  }
+  if (typeof stackMoveMode !== 'undefined' && stackMoveMode) {   // 置き先クリック待ち中は右クリックを無視
+    L.DomEvent.stopPropagation(e);
+    L.DomEvent.preventDefault(e);
     return;
   }
   if (reorderMode || traceReorderMode) {
@@ -621,6 +630,8 @@ function createMarker(pin) {
     if (typeof nextPickMode !== 'undefined' && nextPickMode) { nextPickTap(pin, !!(e.originalEvent && e.originalEvent.shiftKey)); return; }
     // 🎨まとめて色変更モード: タップしたピン（団子なら同じ座標の全ピン）を選択中の色に
     if (typeof bulkColorMode !== 'undefined' && bulkColorMode) { bulkColorTap(pin); return; }
+    // 📤団子から外へ: ピンをクリック＝そのピンと同じ座標にぴったり重ねる
+    if (typeof stackMoveMode !== 'undefined' && stackMoveMode) { stackMovePlace(null, pin); return; }
     if (stampMode) {
       // スタンプモード: 既存ピンクリックで起点変更
       const n = getLabelNum(pin.label);
@@ -690,6 +701,7 @@ function createMarker(pin) {
             (typeof gatherMode !== 'undefined' && gatherMode) ||
             (typeof bulkColorMode !== 'undefined' && bulkColorMode) ||
             (typeof nextPickMode !== 'undefined' && nextPickMode) ||
+            (typeof stackMoveMode !== 'undefined' && stackMoveMode) ||
             (typeof swapTwoMode !== 'undefined' && swapTwoMode) || !pinMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
@@ -722,6 +734,7 @@ function createMarker(pin) {
     L.DomEvent.preventDefault(e);
     if (reorderMode) return;
     if (typeof nextPickMode !== 'undefined' && nextPickMode) return;  // ピック中はピンの右クリックを無視
+    if (typeof stackMoveMode !== 'undefined' && stackMoveMode) return;
     openStackList(pin);
   });
 
@@ -819,6 +832,7 @@ function openStackList(pin) {
     const n = getLabelNum(p.label);
     const txt = stripLabelNum(p.label) || '(ラベルなし)';
     return `<div class="stack-row" data-pin-id="${p.id}">` +
+      `<input type="checkbox" class="stack-chk" title="選ぶ（Shift+クリックで範囲）">` +
       `<span class="stack-dot" style="background:${p.color || '#1976D2'}"></span>` +
       `<span class="stack-num">${n !== null ? n : '–'}</span>` +
       `<span class="stack-txt">${escapeHtml(txt)}` +
@@ -828,6 +842,8 @@ function openStackList(pin) {
   const html = `<div class="stack-list">` +
     `<div class="stack-head">📍 ここに <b>${same.length}</b>件` + (nums.length ? `　🔢 ${formatNumRanges(nums)}` : '') + `</div>` +
     `<div class="stack-body">${rows}</div>` +
+    `<div class="stack-move"><label class="stack-all"><input type="checkbox" class="stack-chk-all"> 全部</label>` +
+    `<button type="button" class="stack-move-btn" disabled>📤 ☑した分を外へ</button></div>` +
     `<div class="stack-colors"><span class="stack-colors-cap">🎨 この${same.length}本をまとめて:</span>` +
     pinColorPresets.map((c, i) => {
       const val = i === 0 ? '' : c.toLowerCase();
@@ -835,7 +851,7 @@ function openStackList(pin) {
       const tip = val ? (nm ? `${nm}（${val}）` : val) : '色なし（既定の青）';
       return `<span class="stack-swatch" data-color="${val}" title="${escapeHtml(tip)}" style="background:${c}">${val ? '' : '×'}</span>`;
     }).join('') + `</div>` +
-    `<div class="stack-foot">行をタップで詳細編集</div></div>`;
+    `<div class="stack-foot">行をタップ=詳細編集／行をドラッグ=地図へ引き出す</div></div>`;
   if (markers[pin.id]) markers[pin.id].closeTooltip();
   const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true })
     .setLatLng([pin.lat, pin.lng]).setContent(html).openOn(map);
@@ -850,6 +866,8 @@ function openStackList(pin) {
       openModal(parseInt(r.getAttribute('data-pin-id')));
     });
   });
+  // 📤 行ドラッグで引き出す／☑して外へ出す → stack-move.js
+  if (typeof wireStackMove === 'function') wireStackMove(el, popup, same);
   // 🎨 団子まるごと色変更（建物を置いた直後に 赤→紫 にする用途）
   el.querySelectorAll('.stack-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
