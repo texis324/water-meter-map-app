@@ -99,13 +99,18 @@ async function showRoute() {
   // ピンをバッチに分けてリクエスト
   const batchSize = 25;
   let failCount = 0;
+  // 繋ぐ順番は「ラベル番号の順」（番号の正本はラベル。内部の配列順は番号とズレていることがある
+  // ＝上條で 170→173→171→172 と繋がった原因 2026-09-17）。番号なしのピンは末尾に、配列順のまま。
+  const ordered = pins.map((p, i) => ({ p, i, n: getLabelNum(p.label) }))
+    .sort((x, y) => ((x.n ?? Infinity) - (y.n ?? Infinity)) || (x.i - y.i))
+    .map(x => x.p);
 
   try {
-    for (let i = 0; i < pins.length - 1; i += batchSize - 1) {
+    for (let i = 0; i < ordered.length - 1; i += batchSize - 1) {
       // 途中で中断された場合はこれ以上描画しない
       if (signal.aborted || myController !== routeAbortController) return;
 
-      const batch = pins.slice(i, Math.min(i + batchSize, pins.length));
+      const batch = ordered.slice(i, Math.min(i + batchSize, ordered.length));
       if (batch.length < 2) break;
 
       try {
