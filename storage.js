@@ -121,6 +121,7 @@ function saveToStorage() {
     const data = JSON.stringify({ pins, nextId, savedTraces, pinGroups, meta });
     localStorage.setItem('waterMeterPins', data);
     console.log(`[SAVE] ${pins.length}件保存 (${(data.length/1024).toFixed(1)}KB)`);
+    if (typeof scheduleRouteRefresh === 'function') scheduleRouteRefresh();   // 🔄ルート表示中なら、変わった区間だけ引き直す
   } catch(e) {
     console.error('localStorage保存エラー:', e);
     showToast('保存エラー: ' + e.message);

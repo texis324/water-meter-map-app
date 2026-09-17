@@ -19,8 +19,10 @@ function hideRoute() {
     routeAbortController.abort();
     routeAbortController = null;
   }
+  if (routeRefreshTimer) { clearTimeout(routeRefreshTimer); routeRefreshTimer = null; }
   routeLines.forEach(line => map.removeLayer(line));
   routeLines = [];
+  routeBatches = [];
   routeVisible = false;
   document.getElementById('btn-route').textContent = '🔄 ルート表示';
   showToast('ルートを非表示にしました');
@@ -75,14 +77,49 @@ function decodePolyline(encoded) {
   return points;
 }
 
+// 区間（25本ずつ）ごとに「どのピンがどの座標にあった時の線か」を覚えておき、
+// ピンが動いたらその区間だけ引き直す（Tench要望 2026-09-17「ルート表示中にピンを動かしたら線も自動で直してほしい」）
+let routeBatches = [];          // [{ sig, lines:[L.polyline...] }]  ※routeLines は全区間の線を平らに並べたもの
+let routeRefreshTimer = null;
+const ROUTE_BATCH_SIZE = 25;    // Google Directions APIは1リクエスト最大25地点（origin + destination + 23 waypoints）
+
+// 繋ぐ順番は「ラベル番号の順」（番号の正本はラベル。内部の配列順は番号とズレていることがある
+// ＝上條で 170→173→171→172 と繋がった原因 2026-09-17）。番号なしのピンは末尾に、配列順のまま。
+function routeOrderedPins() {
+  return pins.map((p, i) => ({ p, i, n: getLabelNum(p.label) }))
+    .sort((x, y) => ((x.n ?? Infinity) - (y.n ?? Infinity)) || (x.i - y.i))
+    .map(x => x.p);
+}
+
+function routeBatchSig(batch) {
+  return batch.map(p => p.id + ':' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6)).join('|');
+}
+
+function routeSyncLines() { routeLines = routeBatches.flatMap(b => b.lines); }
+
 async function showRoute() {
   if (pins.length < 2) {
     showToast('ピンが2件以上必要です');
     return;
   }
-
   showToast('ルート取得中...');
+  // 既存ルートをクリアして全区間を引き直す
+  routeLines.forEach(line => map.removeLayer(line));
+  routeLines = [];
+  routeBatches = [];
+  const r = await drawRouteBatches();
+  if (!r) return;   // 途中で中断された
+  routeVisible = true;
+  document.getElementById('btn-route').textContent = '🔄 ルート非表示';
+  if (r.failCount > 0) {
+    showToast(`ルート表示完了（${r.failCount}区間は直線で代替）`);
+  } else {
+    showToast('ルートを表示しました');
+  }
+}
 
+// 区間ごとに、覚えている sig と今の sig が違う所だけ取得し直す。戻り値 {fetched, failCount}／中断されたら null
+async function drawRouteBatches() {
   // 前回の取得が進行中なら中断（連打時のラインが重なる/上書きされるレース対策）
   if (routeAbortController) {
     routeAbortController.abort();
@@ -90,71 +127,79 @@ async function showRoute() {
   routeAbortController = new AbortController();
   const myController = routeAbortController;
   const signal = myController.signal;
-
-  // 既存ルートをクリア
-  routeLines.forEach(line => map.removeLayer(line));
-  routeLines = [];
-
-  // Google Directions APIは1リクエスト最大25地点（origin + destination + 23 waypoints）
-  // ピンをバッチに分けてリクエスト
-  const batchSize = 25;
-  let failCount = 0;
-  // 繋ぐ順番は「ラベル番号の順」（番号の正本はラベル。内部の配列順は番号とズレていることがある
-  // ＝上條で 170→173→171→172 と繋がった原因 2026-09-17）。番号なしのピンは末尾に、配列順のまま。
-  const ordered = pins.map((p, i) => ({ p, i, n: getLabelNum(p.label) }))
-    .sort((x, y) => ((x.n ?? Infinity) - (y.n ?? Infinity)) || (x.i - y.i))
-    .map(x => x.p);
+  const ordered = routeOrderedPins();
+  let fetched = 0, failCount = 0, k = 0;
 
   try {
-    for (let i = 0; i < ordered.length - 1; i += batchSize - 1) {
+    for (let i = 0; i < ordered.length - 1; i += ROUTE_BATCH_SIZE - 1, k++) {
       // 途中で中断された場合はこれ以上描画しない
-      if (signal.aborted || myController !== routeAbortController) return;
+      if (signal.aborted || myController !== routeAbortController) return null;
 
-      const batch = ordered.slice(i, Math.min(i + batchSize, ordered.length));
+      const batch = ordered.slice(i, Math.min(i + ROUTE_BATCH_SIZE, ordered.length));
       if (batch.length < 2) break;
+      const sig = routeBatchSig(batch);
+      if (routeBatches[k] && routeBatches[k].sig === sig) continue;   // この区間は変わっていない
+
+      // 古い線を消す。取得が中断されても次回また引き直されるよう sig は空にしておく
+      if (routeBatches[k]) routeBatches[k].lines.forEach(line => map.removeLayer(line));
+      routeBatches[k] = { sig: null, lines: [] };
+      routeSyncLines();
+      fetched++;
 
       try {
         const routeCoords = await fetchGoogleRoute(batch, signal);
-        if (signal.aborted || myController !== routeAbortController) return;
+        if (signal.aborted || myController !== routeAbortController) return null;
         if (routeCoords) {
           const line = L.polyline(routeCoords, {
             color: '#1976D2',
             weight: 5,
             opacity: getTraceOpacity()
           }).addTo(map);
-          routeLines.push(line);
+          routeBatches[k] = { sig, lines: [line] };
         } else {
           throw new Error('No route');
         }
       } catch (err) {
         // 中断によるエラーは即座に抜ける（フォールバック線も引かない）
-        if (err && err.name === 'AbortError') return;
-        if (signal.aborted) return;
+        if (err && err.name === 'AbortError') return null;
+        if (signal.aborted) return null;
         failCount++;
         // フォールバック: 直線で繋ぐ
+        const lines = [];
         for (let j = 0; j < batch.length - 1; j++) {
-          const line = L.polyline(
+          lines.push(L.polyline(
             [[batch[j].lat, batch[j].lng], [batch[j+1].lat, batch[j+1].lng]],
             { color: '#f44336', weight: 3, opacity: 0.6, dashArray: '8, 8' }
-          ).addTo(map);
-          routeLines.push(line);
+          ).addTo(map));
         }
+        routeBatches[k] = { sig, lines };
       }
+      routeSyncLines();
     }
+    // ピンが減って区間が余ったら、その線を消す
+    routeBatches.splice(k).forEach(b => b.lines.forEach(line => map.removeLayer(line)));
+    routeSyncLines();
   } finally {
     // 自分が最新のままなら、controllerをクリア
     if (myController === routeAbortController) {
       routeAbortController = null;
     }
   }
+  return { fetched, failCount };
+}
 
-  routeVisible = true;
-  document.getElementById('btn-route').textContent = '🔄 ルート非表示';
-  if (failCount > 0) {
-    showToast(`ルート表示完了（${failCount}区間は直線で代替）`);
-  } else {
-    showToast('ルートを表示しました');
-  }
+// ルート表示中にピンが動いた/増減した/番号が変わった時に、変わった区間だけ引き直す。
+// saveToStorage と refreshAllMarkers から呼ばれる（何も変わっていなければ通信しない）。連続操作に備えて少し待ってからまとめて実行。
+function scheduleRouteRefresh() {
+  if (!routeVisible) return;
+  if (routeRefreshTimer) clearTimeout(routeRefreshTimer);
+  routeRefreshTimer = setTimeout(async () => {
+    routeRefreshTimer = null;
+    if (!routeVisible) return;
+    if (pins.length < 2) { hideRoute(); return; }
+    const r = await drawRouteBatches();
+    if (r && r.fetched) console.log(`[ROUTE] ${r.fetched}区間を引き直し` + (r.failCount ? `（${r.failCount}区間は直線で代替）` : ''));
+  }, 700);
 }
 
 // --- ルート線の濃さ ---

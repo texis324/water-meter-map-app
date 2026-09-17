@@ -1067,6 +1067,7 @@ function buildMarkerCache() {
 }
 
 function refreshAllMarkers() {
+  if (typeof scheduleRouteRefresh === 'function') scheduleRouteRefresh();   // 🔄ルート表示中なら、変わった区間だけ引き直す（変化が無ければ通信しない）
   for (const id in markers) {
     map.removeLayer(markers[id]);
   }
