@@ -300,8 +300,88 @@ function openQuickPlace(latlng) {
   quickPlaceLatLng = latlng;
   document.getElementById('place-modal').classList.add('show');
   document.getElementById('place-num-end').value = ''; // 範囲は毎回明示させる(単発が既定)
+  const nameEl = document.getElementById('place-name');
+  if (nameEl) { nameEl.value = ''; renderQuickPlaceMatches(); }
   const input = document.getElementById('place-num');
   setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+// --- 📌 名前・住所でピンを呼び出す（Tench要望 2026-09-17「番号だけでなく名前や苗字からも呼び出したい」）---
+// 照合はラベル(番号を除く)＋メモ。NFKC正規化＋空白除去＋ひらがな→カタカナで、
+// 「中川清」「なかがわ」のような打ち方でも「中川　清」「ナカガワ」に当たるようにする。
+// ★会社データは長音「ー」を全角ハイフン「－」で入れている（アンジュ－ル／コ－ポ）。
+//   長音とハイフン類を全部 '-' に寄せて両側で同一視する（番地の 439-2 もそのまま当たる）。
+function normSearch(s) {
+  return (s || '').normalize('NFKC').toLowerCase().replace(/[\s　]+/g, '')
+    .replace(/[ー－‐‑‒–—―−]/g, '-')
+    .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+}
+
+function quickPlaceMatches(q) {
+  const nq = normSearch(q);
+  if (!nq) return [];
+  const numOf = p => { const n = getLabelNum(p.label); return n === null ? Infinity : n; };
+  return pins
+    .filter(p => normSearch(stripLabelNum(p.label) + ' ' + (p.memo || '')).includes(nq))
+    .sort((a, b) => numOf(a) - numOf(b));
+}
+
+function renderQuickPlaceMatches() {
+  const box = document.getElementById('place-matches');
+  const nameEl = document.getElementById('place-name');
+  if (!box || !nameEl) return;
+  const q = nameEl.value;
+  if (!normSearch(q)) { box.innerHTML = ''; return; }
+  const all = quickPlaceMatches(q);
+  if (!all.length) { box.innerHTML = '<div class="place-nohit">見つかりません</div>'; return; }
+  const LIMIT = 40;
+  const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m) + 'm';
+  box.innerHTML = all.slice(0, LIMIT).map(p => {
+    const n = getLabelNum(p.label);
+    const dist = quickPlaceLatLng ? map.distance(quickPlaceLatLng, [p.lat, p.lng]) : null;
+    return `<div class="stack-row" data-pin-id="${p.id}">` +
+      `<span class="stack-dot" style="background:${p.color || '#1976D2'}"></span>` +
+      `<span class="stack-num">${n !== null ? n : '–'}</span>` +
+      `<span class="stack-txt">${escapeHtml(stripLabelNum(p.label) || '(ラベルなし)')}` +
+      (dist !== null ? `<span class="stack-memo">いま ${fmtDist(dist)} 先</span>` : '') +
+      `</span></div>`;
+  }).join('') + (all.length > LIMIT ? `<div class="place-nohit">ほか ${all.length - LIMIT} 件（もう少し打って絞って）</div>` : '');
+  box.querySelectorAll('.stack-row').forEach(r => {
+    r.addEventListener('click', () => {
+      const pin = pins.find(p => p.id === parseInt(r.getAttribute('data-pin-id')));
+      if (pin) moveQuickPlacePin(pin);
+    });
+  });
+}
+
+// 名前欄のEnter: 候補がちょうど1件ならそれを置く。IME変換確定のEnterでは動かさない
+function quickPlaceNameKey(e) {
+  if (e.key !== 'Enter') return;
+  if (e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  const all = quickPlaceMatches(document.getElementById('place-name').value);
+  if (all.length === 1) moveQuickPlacePin(all[0]);
+  else if (all.length > 1) showToast(`候補が${all.length}件あります。タップで選んでください`);
+  else showToast('見つかりません');
+}
+
+// 1本のピンをクイック配置の地点へ移動（番号指定・名前指定の共通処理）
+function moveQuickPlacePin(pin) {
+  if (!quickPlaceLatLng) return;
+  let lat = quickPlaceLatLng.lat, lng = quickPlaceLatLng.lng;
+  if (typeof snapToReference === 'function') {
+    const s = snapToReference(lat, lng);
+    lat = s.lat; lng = s.lng;
+  }
+  pushUndo();
+  pin.lat = lat;
+  pin.lng = lng;
+  refreshAllMarkers();
+  saveToStorage();
+  const n = getLabelNum(pin.label);
+  showToast(`📌 ${n !== null ? '#' + n + ' ' : ''}${stripLabelNum(pin.label).slice(0, 14)} をここに移動しました`);
+  updatePinCount();
+  closeQuickPlace();
 }
 
 function closeQuickPlace() {
@@ -320,25 +400,17 @@ function executeQuickPlace() {
     return;
   }
   // --- 単発: 移動 or 新規作成（従来動作） ---
+  const pin = findPinByNum(num);
+  if (pin) { moveQuickPlacePin(pin); return; }  // 移動は名前指定と共通処理
   // 参照ピンへの磁石スナップ（ON時のみ吸着）
   let lat = quickPlaceLatLng.lat, lng = quickPlaceLatLng.lng;
   if (typeof snapToReference === 'function') {
     const s = snapToReference(lat, lng);
     lat = s.lat; lng = s.lng;
   }
-  const pin = findPinByNum(num);
   pushUndo();
-  if (pin) {
-    pin.lat = lat;
-    pin.lng = lng;
-    refreshAllMarkers();
-    saveToStorage();
-    const name = stripLabelNum(pin.label).slice(0, 14);
-    showToast(`📌 #${num} ${name} をここに移動しました`);
-  } else {
-    addPin(lat, lng, `${num}. 新規ピン`, '');
-    showToast(`📌 #${num} を新規配置しました`);
-  }
+  addPin(lat, lng, `${num}. 新規ピン`, '');
+  showToast(`📌 #${num} を新規配置しました`);
   updatePinCount();
   closeQuickPlace();
 }
