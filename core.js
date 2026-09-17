@@ -144,6 +144,8 @@ function getModeRegistry() {
     { name: 'gather',       flag: () => typeof gatherMode !== 'undefined' && gatherMode,               exit: () => finishGather() },
     // bulkColorも塗った瞬間に保存済み（終了するだけ）
     { name: 'bulkColor',    flag: () => typeof bulkColorMode !== 'undefined' && bulkColorMode,         exit: () => finishBulkColor() },
+    // nextPickは「前のピンをタップ待ち」の一時状態。何も変更していないので黙って取消
+    { name: 'nextPick',     flag: () => typeof nextPickMode !== 'undefined' && nextPickMode,           exit: () => cancelNextPick(true) },
   ];
 }
 
@@ -157,7 +159,7 @@ function activeModeName(exceptName) {
 const MODE_LABELS = {
   stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
   group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
-  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める', bulkColor: 'まとめて色変更',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める', bulkColor: 'まとめて色変更', nextPick: '前のピンをタップ',
 };
 
 function exitAllOtherModes(exceptName) {
@@ -242,6 +244,7 @@ if (pins.length === 0 && navigator.geolocation) {
 
 // --- 地図タップ ---
 map.on('click', function(e) {
+  if (typeof nextPickMode !== 'undefined' && nextPickMode) { showToast('👆 地図ではなく「一つ前のピン」をタップしてください（Esc=取消）'); return; }
   if (traceEditMode) return;
   if (traceMode) {
     handleTraceTap(e.latlng);
@@ -265,6 +268,12 @@ map.on('click', function(e) {
 
 // 地図右クリック(スマホは長押し): 並べ替え中・なぞり中はピン追加、通常時は📌番号クイック配置
 map.on('contextmenu', function(e) {
+  if (typeof nextPickMode !== 'undefined' && nextPickMode) {
+    L.DomEvent.stopPropagation(e);
+    L.DomEvent.preventDefault(e);
+    nextPickRetarget(e.latlng);
+    return;
+  }
   if (reorderMode || traceReorderMode) {
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
@@ -299,6 +308,8 @@ map.on('contextmenu', function(e) {
     // 通常時（ピン追加/閲覧モード）: 指定番号のピンをこの地点へパッと置く
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
+    // Shift+右クリック: モーダルを飛ばして「👆前のピンをタップ→次の番号をここへ」に直行
+    if (e.originalEvent && e.originalEvent.shiftKey && typeof startNextPick === 'function') { startNextPick(e.latlng); return; }
     openQuickPlace(e.latlng);
   }
 });
@@ -606,6 +617,8 @@ function createMarker(pin) {
   let clickTimer = null;
   marker.on('click', function(e) {
     L.DomEvent.stopPropagation(e);
+    // 👆ネクスト・ピック: タップしたピンの「次の番号」（Shift+タップは前の番号）を置き先へ
+    if (typeof nextPickMode !== 'undefined' && nextPickMode) { nextPickTap(pin, !!(e.originalEvent && e.originalEvent.shiftKey)); return; }
     // 🎨まとめて色変更モード: タップしたピン（団子なら同じ座標の全ピン）を選択中の色に
     if (typeof bulkColorMode !== 'undefined' && bulkColorMode) { bulkColorTap(pin); return; }
     if (stampMode) {
@@ -676,6 +689,7 @@ function createMarker(pin) {
             traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode ||
             (typeof gatherMode !== 'undefined' && gatherMode) ||
             (typeof bulkColorMode !== 'undefined' && bulkColorMode) ||
+            (typeof nextPickMode !== 'undefined' && nextPickMode) ||
             (typeof swapTwoMode !== 'undefined' && swapTwoMode) || !pinMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
@@ -707,6 +721,7 @@ function createMarker(pin) {
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
     if (reorderMode) return;
+    if (typeof nextPickMode !== 'undefined' && nextPickMode) return;  // ピック中はピンの右クリックを無視
     openStackList(pin);
   });
 
