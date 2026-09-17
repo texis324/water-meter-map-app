@@ -82,6 +82,25 @@
     return c;
   }
 
+  // ---- ピン統計（Tench要望 2026-09-12「マンションが何％・何件か出したい」）----
+  // 🏢集合住宅 = 紫 #9c27b0 のピン（運用上の固定色。凡例の意味ラベルは表示名にだけ使う）
+  // 📍団子     = 同一座標(小数6桁)に2本以上重なっているピン（＝建物単位でまとめた集合住宅など）
+  const APT_COLOR = '#9c27b0';
+  function computeStats() {
+    const arr = (typeof pins !== 'undefined' && pins) ? pins : [];
+    const total = arr.length;
+    const byColor = usedColors();
+    const apt = byColor[APT_COLOR] || 0;
+    const key = p => (Math.round(p.lat * 1e6) / 1e6) + ',' + (Math.round(p.lng * 1e6) / 1e6);
+    const stacks = {};
+    arr.forEach(p => { const k = key(p); stacks[k] = (stacks[k] || 0) + 1; });
+    let stackSites = 0, stackPins = 0;
+    Object.keys(stacks).forEach(k => { const n = stacks[k]; if (n >= 2) { stackSites++; stackPins += n; } });
+    const pct = n => total ? Math.round(n * 1000 / total) / 10 : 0;
+    return { total, byColor, apt, aptPct: pct(apt), stackSites, stackPins, stackPct: pct(stackPins), single: total - stackPins, pct };
+  }
+  window.getPinStats = computeStats;
+
   function legendVisible() { return localStorage.getItem(SHOW_KEY) !== 'off'; }
 
   // ---- 地図左下の常時表示凡例 ----
@@ -93,16 +112,23 @@
 
   window.refreshMapLegend = function () {
     const box = ensureMapBox();
-    const used = usedColors();
+    const st = computeStats();
+    const used = st.byColor;
     const cols = Object.keys(used).filter(c => legend[c]).sort((a, b) => used[b] - used[a]);
-    if (!legendVisible() || cols.length === 0) { box.style.display = 'none'; return; }
+    // ピンが0本のときだけ隠す（色なしエリアでも統計は出す）
+    if (!legendVisible() || st.total === 0) { box.style.display = 'none'; return; }
     box.style.display = 'block';
+    const aptName = legend[APT_COLOR] || '紫';
     box.innerHTML =
-      '<div class="ml-head"><span>🏷 色の凡例</span><span id="ml-edit">編集</span></div>' +
+      `<div class="ml-head"><span>${cols.length ? '🏷 色の凡例' : '📊 ピン統計'}</span><span id="ml-edit">編集</span></div>` +
       cols.map(c =>
         `<div class="ml-row"><span class="ml-dot" style="background:${c}"></span>` +
-        `<span class="ml-txt">${esc(legend[c])}</span><span class="ml-cnt">${used[c]}</span></div>`
-      ).join('');
+        `<span class="ml-txt">${esc(legend[c])}</span><span class="ml-cnt">${used[c]}<span class="ml-pct">(${st.pct(used[c])}%)</span></span></div>`
+      ).join('') +
+      `<div class="ml-stats">📊 全 <b>${st.total}</b>件` +
+      (st.apt ? `<br>🏢 ${esc(aptName)} <b>${st.apt}</b>件 (${st.aptPct}%)` : '') +
+      (st.stackSites ? `<br>📍 団子 ${st.stackSites}か所・<b>${st.stackPins}</b>本 (${st.stackPct}%)` : '') +
+      `</div>`;
     const e = document.getElementById('ml-edit');
     if (e) e.onclick = window.openLegend;
   };
@@ -123,7 +149,7 @@
       `<span class="legend-dot" style="background:${c}"></span>` +
       `<div class="legend-meta">` +
       `<input class="legend-input" data-color="${c}" value="${esc(legend[c] || '').replace(/"/g, '&quot;')}" placeholder="意味（例: アパート / 閉栓 / 要注意）">` +
-      `<span class="legend-sub">${c} ・ ${(used[c] || 0)}件</span>` +
+      `<span class="legend-sub">${c} ・ ${(used[c] || 0)}件 (${computeStats().pct(used[c] || 0)}%)</span>` +
       `</div></div>`
     ).join('');
     body.querySelectorAll('.legend-input').forEach(inp => {
@@ -156,5 +182,11 @@
   };
 
   // 初回描画(pins復元後に間に合うよう少し遅延)
-  setTimeout(function () { try { window.refreshMapLegend(); } catch (e) {} }, 700);
+  // updatePinCount 経由にすると右下の「N件・🏢…」も同時に更新される（core.js の初回 updatePinCount は
+  // このファイルより先に走るので getPinStats が未定義＝🏢が付かないまま。ここで揃える）
+  setTimeout(function () {
+    try {
+      if (typeof updatePinCount === 'function') updatePinCount(); else window.refreshMapLegend();
+    } catch (e) {}
+  }, 700);
 })();

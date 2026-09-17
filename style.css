@@ -703,6 +703,11 @@ body.dark .pin-list-coords { color: #777; }
 #map-legend .ml-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.2); }
 #map-legend .ml-txt { flex: 1; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #map-legend .ml-cnt { color: #999; font-size: 10px; flex-shrink: 0; }
+#map-legend .ml-pct { color: #bbb; margin-left: 3px; }
+#map-legend .ml-stats { border-top: 1px solid #ddd; margin-top: 4px; padding-top: 4px; font-size: 11px; color: #333; line-height: 1.5; white-space: nowrap; }
+#map-legend .ml-stats b { color: #1976D2; }
+body.dark #map-legend .ml-stats { border-top-color: #555; color: #ddd; }
+body.dark #map-legend .ml-stats b { color: #64b5f6; }
 
 /* 凡例編集モーダルの行 */
 .legend-erow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eee; }

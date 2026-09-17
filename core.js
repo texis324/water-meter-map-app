@@ -737,7 +737,7 @@ function savePin() {
   markers[pin.id] = createMarker(pin);
 
   saveToStorage();
-  if (pinListOpen) renderPinList();
+  updatePinCount();  // 色変更で凡例の件数/％と🏢表示を即時更新
   closeModal();
   showToast('保存しました');
 }
@@ -862,7 +862,13 @@ function refreshAllMarkers() {
 
 // --- UI ---
 function updatePinCount() {
-  document.getElementById('pin-count').textContent = pins.length + '件';
+  // 例: "321件・🏢104(32%)"  🏢=紫(集合住宅)の本数と割合（legend.js の getPinStats）
+  let txt = pins.length + '件';
+  if (window.getPinStats) {
+    const st = window.getPinStats();
+    if (st.apt) txt += `・🏢${st.apt}(${Math.round(st.aptPct)}%)`;
+  }
+  document.getElementById('pin-count').textContent = txt;
   if (pinListOpen) renderPinList();
   if (window.refreshMapLegend) window.refreshMapLegend();
 }
