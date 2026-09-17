@@ -197,11 +197,20 @@ const map = L.map('map', {
 const tiles = {
   light: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 21, maxNativeZoom: 19 }),
   dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 21, maxNativeZoom: 19 }),
-  satellite: L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, maxNativeZoom: 20 })
+  satellite: L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 22, maxNativeZoom: 20 }),
+  // 衛星＋地名（Tench要望 2026-09-17「衛星画像だと集合住宅の名前が分からない」→建物名・店名が写真に重なる）
+  hybrid: L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ja&x={x}&y={y}&z={z}', { maxZoom: 22, maxNativeZoom: 20 })
 };
-const tileNames = ['light', 'dark', 'satellite'];
-const tileLabels = { light: '🗺️', dark: '🌙', satellite: '🛰️' };
-let currentTile = localStorage.getItem('waterMeterTile') || 'light';
+const tileNames = ['hybrid', 'light', 'dark', 'satellite'];
+const tileLabels = { hybrid: '🛰️🏷', light: '🗺️', dark: '🌙', satellite: '🛰️' };
+// 既定はハイブリッド。以前の選択が保存されている端末も一度だけハイブリッドへ移行する
+// （移行後にボタンで選び直したものは従来どおり記憶される）
+if (!localStorage.getItem('waterMeterTileHybridMigrated')) {
+  localStorage.setItem('waterMeterTile', 'hybrid');
+  localStorage.setItem('waterMeterTileHybridMigrated', '1');
+}
+let currentTile = localStorage.getItem('waterMeterTile') || 'hybrid';
+if (!tiles[currentTile]) currentTile = 'hybrid';
 
 // 起動時のテーマ適用
 function applyTile() {
