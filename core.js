@@ -892,6 +892,7 @@ function openModal(pinId) {
   { const _n = getLabelNum(pin.label);   // 表示番号はラベル正本（配列indexは番号とズレ得る）
     document.getElementById('modal-title').textContent = `ピン #${_n != null ? _n : pins.indexOf(pin) + 1}`; }
   renderGroupItems(pin.group || []);
+  if (typeof updateBetweenButton === 'function') updateBetweenButton(pin);   // ↔ボタンの文言を「#70 と #72 の間」に
   document.getElementById('pin-modal').classList.add('show');
 }
 

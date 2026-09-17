@@ -829,3 +829,7 @@ body.dark .legend-erow .legend-input { background: #333; color: #ddd; border-col
 .submit-table .submit-memo { color: #888; font-size: 11px; max-width: 220px; }
 body.dark .submit-table th { background: #333; }
 body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }
+
+/* ↔ 前後のピンの中間へ（between.js） */
+#btn-pin-between:disabled { background: #bbb !important; cursor: default; }
+#btn-pin-between:hover:not(:disabled) { background: #3F51B5 !important; }

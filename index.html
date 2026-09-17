@@ -42,6 +42,7 @@
   <button id="btn-multi-move" onclick="toggleMultiMove()" title="囲んで選択したピンを✥ハンドルでまとめて移動">🖐 まとめて移動</button>
   <button id="btn-gather" onclick="toggleGatherMode()" title="囲んだピンをその場で1箇所に重ねる（キーボード: G）">🎯 1箇所に集める</button>
   <button id="btn-bulk-color" onclick="toggleBulkColorMode()" title="色を選んで、囲んだピン／タップしたピン（団子は丸ごと）をまとめてその色に（キーボード: C）">🎨 まとめて色変更</button>
+  <button onclick="moveAllUnsureBetween()" title="赤ピン（要位置確認）を全部、番号が前後の「赤ではないピン」の中間へ仮置きする。赤が続く所は等間隔。色は赤のまま・↩で戻せる">↔ 赤ピンを前後の中間へ</button>
   <button onclick="openTraceList()" title="ルート線／区切り線／目印を一覧表示。ズーム・削除">🗒 書き込み一覧</button>
   <button id="btn-trace" onclick="toggleTraceMode()" title="タップで線を引く。ルート線(実線)／区切り線(破線・色選択)。線の右クリックで削除、タップで編集（キーボード: L）">✏️ ルート線</button>
   <button id="btn-route" onclick="toggleRoute()">🔄 ルート表示</button>
@@ -83,6 +84,9 @@
     </div>
     <div style="margin:6px 0 10px;">
       <button id="btn-pin-start" onclick="rotateRouteToStartAt(editingPinId)" title="このピンを1番にして、元の1番〜(この番号-1)をルートの最後に回す（回転）" style="width:100%;padding:8px;border:none;border-radius:6px;background:#00897B;color:#fff;font-size:14px;cursor:pointer;">🏁 ここをスタートにする（1番にして残りを後ろへ回す）</button>
+    </div>
+    <div style="margin:0 0 10px;">
+      <button id="btn-pin-between" onclick="movePinBetweenNeighbors()" title="位置が怪しいピンの仮置き用。番号が一つ前と一つ後のピン（赤＝要位置確認は基準にしない）の中間へ移動する。↩で戻せる" style="width:100%;padding:8px;border:none;border-radius:6px;background:#5C6BC0;color:#fff;font-size:14px;cursor:pointer;">↔ 前後のピンの中間へ移動</button>
     </div>
     <div class="modal-buttons">
       <button class="btn-delete" id="btn-pin-delete" onclick="deletePin()">削除</button>
@@ -189,6 +193,7 @@
           <b>ダブルクリック</b>: 同一座標ピン全消去 / グループ展開・縮小<br>
           <b>右クリック（スマホ長押し）</b>: ピンの詳細編集（ラベル・メモ・色）。<b>重なっているピン（団子）なら、先にその場所の全ピン一覧</b>が番号順に出る → 行をタップでそのピンの詳細へ。<b>📤 行をドラッグして地図に落とす</b>とそのピンだけ引き出せる（別のピンの上に落とすとそのピンにぴったり重なる）。<b>☑していくつか選んで</b>ドラッグ、または「📤 選んだN本を外へ」→置き先をクリックでまとめて外へ（Shift+クリックで範囲選択・↩で戻せる）<br>
           <b>地図ダブルクリック</b>: Googleストリートビューを開く<br>
+          <b>↔ 前後のピンの中間へ</b>: 位置が怪しいピンの仮置き。ピン詳細の「↔ 前後の中間へ移動」でその1本を、✏️編集メニューの「↔ 赤ピンを前後の中間へ」で<b>赤ピン（要位置確認）を全部</b>、番号が一つ前と一つ後のピンの間へ移す（赤は基準にしない・赤が続く所は等間隔・色は赤のまま・↩で戻せる）<br>
           <b>地図右クリック（スマホ長押し）</b>: 📌指定番号のピンをそこへパッと移動（無ければ新規作成）。「12〜25」のように範囲指定すると番号帯を一気に召喚。<b>番号が分からなければ下の欄に名前・苗字・番地を打つ</b>→候補が出るのでタップでそのピンをそこへ移動（スペース抜き・ひらがな/カタカナ違いでも当たる）。<b>Enter＝候補を全部そこへ</b>：1件ならその1本、<b>集合住宅名（例: アルタイル）なら確認のうえ建物の全室を1点に重ねて移動</b>（📦ボタンも同じ。↩戻す1回で全部戻る）。<b>👆 前のピンをタップ</b>：「ここにピンが無い」と気づいたら右クリック→このボタン→地図の<b>一つ前のピンをタップ</b>＝その<b>次の番号</b>のピンがそこへ移動（団子をタップ＝建物の次の家・Shift+タップ＝前の番号・<b>Shift+右クリック</b>ならモーダルを飛ばして直行・Esc＝取消）<br>
           <b>ドラッグ</b>: ピンの位置を移動
         </div>
@@ -322,6 +327,7 @@
 <script src="bulk-color.js"></script>
 <script src="next-pick.js"></script>
 <script src="stack-move.js"></script>
+<script src="between.js"></script>
 <script src="reference-pins.js"></script>
 <script src="core.js"></script>
 <script src="sync.js"></script>
