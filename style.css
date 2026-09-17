@@ -216,6 +216,26 @@ body.dark .menu-slider { color: #aaa; }
   max-width: 300px;
 }
 
+/* 📍団子の中身一覧ポップアップ（ピン右クリック/長押し） */
+.stack-popup .leaflet-popup-content { margin: 8px 10px; }
+.stack-list { font-size: 13px; line-height: 1.35; }
+.stack-head { font-weight: bold; color: #333; padding-bottom: 5px; margin-bottom: 4px; border-bottom: 1px solid #ddd; }
+.stack-head b { color: #1976D2; }
+.stack-body { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.stack-row { display: flex; align-items: flex-start; gap: 6px; padding: 5px 4px; border-radius: 4px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+.stack-row:last-child { border-bottom: none; }
+.stack-row:hover { background: #E3F2FD; }
+.stack-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; border: 1px solid rgba(0,0,0,0.2); }
+.stack-num { font-weight: bold; color: #1976D2; min-width: 30px; text-align: right; flex-shrink: 0; }
+.stack-txt { flex: 1; color: #222; overflow-wrap: anywhere; }
+.stack-memo { display: block; color: #777; font-size: 11px; }
+.stack-foot { font-size: 11px; color: #999; padding-top: 4px; text-align: right; }
+body.dark .stack-popup .leaflet-popup-content-wrapper, body.dark .stack-popup .leaflet-popup-tip { background: #2a2a2a; color: #ddd; }
+body.dark .stack-head { color: #ddd; border-bottom-color: #555; }
+body.dark .stack-row { border-bottom-color: #3a3a3a; }
+body.dark .stack-row:hover { background: #37474F; }
+body.dark .stack-txt { color: #ddd; }
+
 /* 並べ替え済みピン */
 .pin-icon.reordered {
   background: #9C27B0;

@@ -585,12 +585,12 @@ function createMarker(pin) {
     }
   });
 
-  // 右クリック: 詳細モーダル表示
+  // 右クリック: 詳細モーダル表示。団子(同一座標に2本以上)なら先に中身の一覧を出す
   marker.on('contextmenu', function(e) {
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
     if (reorderMode) return;
-    openModal(pin.id);
+    openStackList(pin);
   });
 
   // ドラッグで位置修正
@@ -656,6 +656,46 @@ function renderColorPresets(activeColor) {
 function clearPinColor() {
   document.getElementById('pin-color').value = '#1976D2';
   renderColorPresets('');
+}
+
+// 📍団子の中身を一覧表示（Tench要望 2026-09-17「重なっているピンを右クリックで全部パッと見たい」）
+// 同一座標(重複バッジと同じ厳密一致)のピンを番号順に並べたポップアップをその場に出す。
+// 行タップでそのピンの詳細モーダルへ。1本しか無ければ従来どおり直接モーダル。
+// ピンは後から動くので、マーカー生成時の sameLoc ではなく開く瞬間に数え直す。
+function openStackList(pin) {
+  const same = pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
+  if (same.length <= 1) { openModal(pin.id); return; }
+  const numOf = p => { const n = getLabelNum(p.label); return n === null ? Infinity : n; };
+  same.sort((a, b) => numOf(a) - numOf(b));
+  const nums = same.map(p => getLabelNum(p.label)).filter(n => n !== null);
+  const rows = same.map(p => {
+    const n = getLabelNum(p.label);
+    const txt = stripLabelNum(p.label) || '(ラベルなし)';
+    return `<div class="stack-row" data-pin-id="${p.id}">` +
+      `<span class="stack-dot" style="background:${p.color || '#1976D2'}"></span>` +
+      `<span class="stack-num">${n !== null ? n : '–'}</span>` +
+      `<span class="stack-txt">${escapeHtml(txt)}` +
+      (p.memo ? `<span class="stack-memo">${escapeHtml(p.memo)}</span>` : '') +
+      `</span></div>`;
+  }).join('');
+  const html = `<div class="stack-list">` +
+    `<div class="stack-head">📍 ここに <b>${same.length}</b>件` + (nums.length ? `　🔢 ${formatNumRanges(nums)}` : '') + `</div>` +
+    `<div class="stack-body">${rows}</div>` +
+    `<div class="stack-foot">行をタップで詳細編集</div></div>`;
+  if (markers[pin.id]) markers[pin.id].closeTooltip();
+  const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true })
+    .setLatLng([pin.lat, pin.lng]).setContent(html).openOn(map);
+  const el = popup.getElement();
+  if (!el) return;
+  // ポップアップ内のスクロール/タップが地図に抜けないように（地図がズームしたりピン追加が走ったりする）
+  L.DomEvent.disableClickPropagation(el);
+  L.DomEvent.disableScrollPropagation(el);
+  el.querySelectorAll('.stack-row').forEach(r => {
+    r.addEventListener('click', () => {
+      map.closePopup(popup);
+      openModal(parseInt(r.getAttribute('data-pin-id')));
+    });
+  });
 }
 
 function openModal(pinId) {
