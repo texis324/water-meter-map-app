@@ -100,6 +100,8 @@
     return { total, byColor, apt, aptPct: pct(apt), stackSites, stackPins, stackPct: pct(stackPins), single: total - stackPins, pct };
   }
   window.getPinStats = computeStats;
+  // 色→凡例の意味ラベル（無ければ ''）。まとめて色変更のパレット/トーストで色名を出す用
+  window.getLegendLabel = function (c) { return legend[norm(c)] || ''; };
 
   function legendVisible() { return localStorage.getItem(SHOW_KEY) !== 'off'; }
 

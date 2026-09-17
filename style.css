@@ -460,6 +460,27 @@ body.dark .stack-txt { color: #ddd; }
 }
 #gather-banner.show { display: block; }
 
+#bulk-color-banner {
+  display: none; position: fixed; top: 0; left: 0; right: 0;
+  background: #AD1457; color: white; text-align: center; padding: 8px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  z-index: 1500; font-size: 14px; font-weight: bold;
+}
+#bulk-color-banner.show { display: block; }
+#bulk-color-swatches { display: inline-flex; gap: 5px; vertical-align: middle; }
+.bulk-swatch, .stack-swatch {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+  color: #fff; font-size: 12px; font-weight: bold; line-height: 1;
+}
+.bulk-swatch.active { box-shadow: 0 0 0 3px #FFEB3B, 0 0 0 4px rgba(0,0,0,0.5); transform: scale(1.15); }
+.stack-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 0 2px; margin-top: 4px; border-top: 1px solid #ddd; }
+.stack-colors-cap { font-size: 11px; color: #666; width: 100%; }
+.stack-swatch:hover { transform: scale(1.2); }
+body.dark .stack-colors { border-top-color: #555; }
+body.dark .stack-colors-cap { color: #aaa; }
+
 /* 古いスナップショット警告バナー */
 #stale-snapshot-banner {
   display: none;

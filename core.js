@@ -142,6 +142,8 @@ function getModeRegistry() {
     { name: 'swapTwo',      flag: () => typeof swapTwoMode !== 'undefined' && swapTwoMode,             exit: () => cancelSwapTwo(true) },
     // gatherは囲んだ瞬間に保存済みなので、モード切替では終了するだけ（失う作業が無い）
     { name: 'gather',       flag: () => typeof gatherMode !== 'undefined' && gatherMode,               exit: () => finishGather() },
+    // bulkColorも塗った瞬間に保存済み（終了するだけ）
+    { name: 'bulkColor',    flag: () => typeof bulkColorMode !== 'undefined' && bulkColorMode,         exit: () => finishBulkColor() },
   ];
 }
 
@@ -155,7 +157,7 @@ function activeModeName(exceptName) {
 const MODE_LABELS = {
   stamp: 'スタンプ', reorder: '並替え', traceReorder: 'なぞり順', concat: '連結',
   group: 'グループ化', trace: 'ルート線', traceEdit: 'ルート編集',
-  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める',
+  lassoDelete: '範囲削除', multiMove: 'まとめて移動', swapTwo: '2本入替', gather: '1箇所に集める', bulkColor: 'まとめて色変更',
 };
 
 function exitAllOtherModes(exceptName) {
@@ -292,7 +294,8 @@ map.on('contextmenu', function(e) {
       showToast('ピンを追加しました');
     }
   } else if (!stampMode && !concatMode && !groupMode && !traceMode && !traceEditMode && !lassoDeleteMode && !multiMoveMode &&
-             !(typeof gatherMode !== 'undefined' && gatherMode)) {
+             !(typeof gatherMode !== 'undefined' && gatherMode) &&
+             !(typeof bulkColorMode !== 'undefined' && bulkColorMode)) {
     // 通常時（ピン追加/閲覧モード）: 指定番号のピンをこの地点へパッと置く
     L.DomEvent.stopPropagation(e);
     L.DomEvent.preventDefault(e);
@@ -603,6 +606,8 @@ function createMarker(pin) {
   let clickTimer = null;
   marker.on('click', function(e) {
     L.DomEvent.stopPropagation(e);
+    // 🎨まとめて色変更モード: タップしたピン（団子なら同じ座標の全ピン）を選択中の色に
+    if (typeof bulkColorMode !== 'undefined' && bulkColorMode) { bulkColorTap(pin); return; }
     if (stampMode) {
       // スタンプモード: 既存ピンクリックで起点変更
       const n = getLabelNum(pin.label);
@@ -670,6 +675,7 @@ function createMarker(pin) {
         if (stampMode || concatMode || reorderMode || reorderSwapMode || groupMode ||
             traceMode || traceEditMode || traceReorderMode || lassoDeleteMode || multiMoveMode ||
             (typeof gatherMode !== 'undefined' && gatherMode) ||
+            (typeof bulkColorMode !== 'undefined' && bulkColorMode) ||
             (typeof swapTwoMode !== 'undefined' && swapTwoMode) || !pinMode) return;
         pushUndo();
         map.removeLayer(markers[pin.id]);
@@ -769,6 +775,21 @@ function clearPinColor() {
   renderColorPresets('');
 }
 
+// 🎨 複数ピンの色をまとめて変える共通処理（団子一覧のパレット／🎨まとめて色変更モードから呼ぶ）。
+// color は '#rrggbb'（小文字で保存）か ''（色なし＝既定の青）。実際に変わった本数を返す。
+// 変わるピンが無ければ何もしない（無駄な pushUndo を積まない）。1回の呼び出し＝↩1回で戻る。
+function applyColorToPins(list, color) {
+  const val = (color || '').toLowerCase();
+  const targets = list.filter(p => ((p.color || '').toLowerCase()) !== val);
+  if (!targets.length) return 0;
+  pushUndo();
+  targets.forEach(p => { p.color = val; });
+  refreshAllMarkers();
+  saveToStorage();
+  updatePinCount();   // 凡例の件数/％と🏢表示も更新
+  return targets.length;
+}
+
 // 📍団子の中身を一覧表示（Tench要望 2026-09-17「重なっているピンを右クリックで全部パッと見たい」）
 // 同一座標(重複バッジと同じ厳密一致)のピンを番号順に並べたポップアップをその場に出す。
 // 行タップでそのピンの詳細モーダルへ。1本しか無ければ従来どおり直接モーダル。
@@ -792,6 +813,13 @@ function openStackList(pin) {
   const html = `<div class="stack-list">` +
     `<div class="stack-head">📍 ここに <b>${same.length}</b>件` + (nums.length ? `　🔢 ${formatNumRanges(nums)}` : '') + `</div>` +
     `<div class="stack-body">${rows}</div>` +
+    `<div class="stack-colors"><span class="stack-colors-cap">🎨 この${same.length}本をまとめて:</span>` +
+    pinColorPresets.map((c, i) => {
+      const val = i === 0 ? '' : c.toLowerCase();
+      const nm = (val && window.getLegendLabel) ? window.getLegendLabel(val) : '';
+      const tip = val ? (nm ? `${nm}（${val}）` : val) : '色なし（既定の青）';
+      return `<span class="stack-swatch" data-color="${val}" title="${escapeHtml(tip)}" style="background:${c}">${val ? '' : '×'}</span>`;
+    }).join('') + `</div>` +
     `<div class="stack-foot">行をタップで詳細編集</div></div>`;
   if (markers[pin.id]) markers[pin.id].closeTooltip();
   const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true })
@@ -805,6 +833,16 @@ function openStackList(pin) {
     r.addEventListener('click', () => {
       map.closePopup(popup);
       openModal(parseInt(r.getAttribute('data-pin-id')));
+    });
+  });
+  // 🎨 団子まるごと色変更（建物を置いた直後に 赤→紫 にする用途）
+  el.querySelectorAll('.stack-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const val = sw.getAttribute('data-color') || '';
+      const n = applyColorToPins(same, val);
+      map.closePopup(popup);
+      const nm = val ? ((window.getLegendLabel && window.getLegendLabel(val)) || val) : '色なし';
+      showToast(n ? `🎨 ${n}本を「${nm}」にしました（↩で戻せます）` : `${same.length}本はもう「${nm}」です`);
     });
   });
 }
