@@ -839,42 +839,20 @@ body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }
 .stack-row.stack-drop-before { box-shadow: 0 -3px 0 0 #5E35B1 inset; }
 .stack-row.stack-drop-after { box-shadow: 0 3px 0 0 #5E35B1 inset; }
 
-/* 🏁 始点(1番)を目立たせる（core.js createMarker・「始点・終点ハイライト」ON時） */
-.pin-icon.pin-start {
-  transform: scale(1.45);
+/* 🏁 始点(1番)・ゴール(最後の番号)の目印（core.js createMarker・「始点・ゴール強調」ON時）
+   控えめ版（2026-10-13 本人「ちょっと目立ちすぎ」→ 脈動を止め、拡大を1.2倍・光を弱く・ラベルを小さく） */
+.pin-icon.pin-start, .pin-icon.pin-goal {
+  transform: scale(1.2);
   border-color: #fff;
-  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #2E7D32, 0 0 16px 8px rgba(67,160,71,0.75);
-  animation: startPulse 1.5s ease-in-out infinite;
   z-index: 3;
 }
-.pin-icon.pin-start::before {
-  content: '🏁 START';
-  position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%);
-  background: #2E7D32; color: #fff; font: bold 11px sans-serif; white-space: nowrap;
-  padding: 2px 7px; border-radius: 10px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+.pin-icon.pin-start { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2E7D32; }
+.pin-icon.pin-goal  { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263238; }
+.pin-icon.pin-start::before, .pin-icon.pin-goal::before {
+  position: absolute; left: 50%; bottom: calc(100% + 5px); transform: translateX(-50%);
+  font: bold 9px sans-serif; white-space: nowrap; line-height: 1.2;
+  padding: 1px 5px; border-radius: 8px; border: 1px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.45);
   pointer-events: none;
 }
-@keyframes startPulse {
-  0%, 100% { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #2E7D32, 0 0 12px 5px rgba(67,160,71,0.55); }
-  50%      { box-shadow: 0 0 0 3px #fff, 0 0 0 7px #2E7D32, 0 0 26px 14px rgba(67,160,71,0.9); }
-}
-
-/* 🏁 ゴール（最後の番号）を目立たせる（始点は緑・ゴールは濃い青灰＋金の縁。赤は「要位置確認」なので使わない） */
-.pin-icon.pin-goal {
-  transform: scale(1.45);
-  border-color: #fff;
-  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #263238, 0 0 16px 8px rgba(255,193,7,0.75);
-  animation: goalPulse 1.5s ease-in-out infinite;
-  z-index: 3;
-}
-.pin-icon.pin-goal::before {
-  content: '🏁 GOAL';
-  position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%);
-  background: #263238; color: #FFC107; font: bold 11px sans-serif; white-space: nowrap;
-  padding: 2px 7px; border-radius: 10px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-  pointer-events: none;
-}
-@keyframes goalPulse {
-  0%, 100% { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #263238, 0 0 12px 5px rgba(255,193,7,0.55); }
-  50%      { box-shadow: 0 0 0 3px #fff, 0 0 0 7px #263238, 0 0 26px 14px rgba(255,193,7,0.95); }
-}
+.pin-icon.pin-start::before { content: 'START'; background: #2E7D32; color: #fff; }
+.pin-icon.pin-goal::before  { content: 'GOAL';  background: #263238; color: #FFC107; }
