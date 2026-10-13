@@ -851,7 +851,7 @@ function openStackList(pin) {
       const tip = val ? (nm ? `${nm}（${val}）` : val) : '色なし（既定の青）';
       return `<span class="stack-swatch" data-color="${val}" title="${escapeHtml(tip)}" style="background:${c}">${val ? '' : '×'}</span>`;
     }).join('') + `</div>` +
-    `<div class="stack-foot">行をタップ=詳細編集／行をドラッグ=地図へ引き出す</div></div>`;
+    `<div class="stack-foot">行タップ=詳細編集／行ドラッグ: 一覧の中=並び替え・地図へ=引き出し</div></div>`;
   if (markers[pin.id]) markers[pin.id].closeTooltip();
   const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true })
     .setLatLng([pin.lat, pin.lng]).setContent(html).openOn(map);

@@ -833,3 +833,8 @@ body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }
 /* ↔ 前後のピンの中間へ（between.js） */
 #btn-pin-between:disabled { background: #bbb !important; cursor: default; }
 #btn-pin-between:hover:not(:disabled) { background: #3F51B5 !important; }
+
+/* ↕ 団子の中の並び替え（stack-move.js） */
+.stack-row-dragging { opacity: 0.45; }
+.stack-row.stack-drop-before { box-shadow: 0 -3px 0 0 #5E35B1 inset; }
+.stack-row.stack-drop-after { box-shadow: 0 3px 0 0 #5E35B1 inset; }

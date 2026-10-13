@@ -28,6 +28,30 @@ function stackMoveTo(list, latlng, exact) {
   return list.length;
 }
 
+// 団子(同一座標)の中で並び順を入れ替える（Tench要望 2026-10-13「集合住宅の一覧をドラッグで並び替えたい」）
+// 一覧に出ている番号つきピンの「番号の集合」はそのまま、並び順に合わせて小さい番号から割り当て直す。
+// 例: 191,192,193,194 の4室で 194 を一番上へ → 194番の部屋が191に、191〜193が192〜194になる。
+// 番号なしのピンは対象外（一覧の末尾のまま）。old_no・座標・色・メモは触らない。↩1回で戻る。
+function stackReorderApply(same, movingPins, insertBeforePin) {
+  const numbered = same.filter(p => getLabelNum(p.label) !== null)
+    .sort((a, b) => getLabelNum(a.label) - getLabelNum(b.label));
+  const mv = movingPins.filter(p => numbered.includes(p));
+  if (!mv.length) return 0;
+  const rest = numbered.filter(p => !mv.includes(p));
+  let at = insertBeforePin ? rest.indexOf(insertBeforePin) : rest.length;
+  if (at < 0) at = rest.length;
+  const order = [...rest.slice(0, at), ...mv, ...rest.slice(at)];
+  const nums = numbered.map(p => getLabelNum(p.label));       // すでに昇順
+  const before = numbered.map(p => p.id).join(',');
+  if (order.map(p => p.id).join(',') === before) return 0;    // 並びが変わらない
+  pushUndo();
+  order.forEach((p, k) => { p.label = setLabelNum(p.label, nums[k]); });
+  refreshAllMarkers();
+  saveToStorage();
+  updatePinCount();
+  return mv.length;
+}
+
 function stackMoveDescribe(list) {
   if (list.length === 1) {
     const n = getLabelNum(list[0].label);
@@ -99,13 +123,31 @@ function wireStackMove(el, popup, same) {
       if (ev.pointerType === 'touch' || ev.button !== 0) return;
       if (ev.target.closest('.stack-chk')) return;
       const sx = ev.clientX, sy = ev.clientY;
-      let dragging = false, ghost = null, list = null;
+      let dragging = false, ghost = null, list = null, mode = 'pull', reorderTarget;
+      const bodyEl = el.querySelector('.stack-body');
+      const pointInBody = (x, y) => {
+        if (!bodyEl) return false;
+        const r = bodyEl.getBoundingClientRect();
+        return x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 4 && y <= r.bottom + 4;
+      };
+      const clearDropMarks = () => rows.forEach(r => r.classList.remove('stack-drop-before', 'stack-drop-after'));
+      // ポインタの高さから「どの行の前に入れるか」を決める（動かしている行は数えない）
+      const dropTargetAt = (y, moving) => {
+        const others = rows.filter(r => !moving.some(p => p.id === parseInt(r.getAttribute('data-pin-id'))));
+        for (const r of others) {
+          const b = r.getBoundingClientRect();
+          if (y < b.top + b.height / 2) return { row: r, pin: pinOfRow(r), lastRow: null };
+        }
+        return { row: null, pin: null, lastRow: others[others.length - 1] || null };
+      };
 
       const cleanup = () => {
         document.removeEventListener('pointermove', onMove, true);
         document.removeEventListener('pointerup', onUp, true);
         document.removeEventListener('keydown', onKey, true);
         if (ghost) { ghost.remove(); ghost = null; }
+        clearDropMarks();
+        rows.forEach(r => r.classList.remove('stack-row-dragging'));
         el.style.opacity = '';
         el.style.pointerEvents = '';
         document.body.classList.remove('stack-dragging');
@@ -125,14 +167,28 @@ function wireStackMove(el, popup, same) {
           list = (chks[i].checked && chosen.length > 1) ? chosen : [pinOfRow(row)].filter(Boolean);
           ghost = document.createElement('div');
           ghost.className = 'stack-ghost';
-          ghost.textContent = '📤 ' + stackMoveDescribe(list);
           document.body.appendChild(ghost);
-          el.style.opacity = '0.3';            // 一覧の下にも落とせるよう透かして素通しに
-          el.style.pointerEvents = 'none';
           document.body.classList.add('stack-dragging');
+          list.forEach(p => { const r = rows.find(x => parseInt(x.getAttribute('data-pin-id')) === p.id); if (r) r.classList.add('stack-row-dragging'); });
         }
         ghost.style.left = (e.clientX + 14) + 'px';
         ghost.style.top = (e.clientY + 14) + 'px';
+        // 一覧の本体の中なら「並び替え」、外なら「地図へ引き出し」
+        reorderTarget = undefined;
+        clearDropMarks();
+        if (pointInBody(e.clientX, e.clientY) && list.every(p => getLabelNum(p.label) !== null)) {
+          mode = 'reorder';
+          el.style.opacity = ''; el.style.pointerEvents = '';
+          const t = dropTargetAt(e.clientY, list);
+          reorderTarget = t.pin;                                   // null=最後へ
+          if (t.row) t.row.classList.add('stack-drop-before'); else if (t.lastRow) t.lastRow.classList.add('stack-drop-after');
+          ghost.textContent = '↕ ' + stackMoveDescribe(list) + ' を並び替え';
+        } else {
+          mode = 'pull';
+          el.style.opacity = '0.3';            // 一覧の下にも落とせるよう透かして素通しに
+          el.style.pointerEvents = 'none';
+          ghost.textContent = '📤 ' + stackMoveDescribe(list);
+        }
       };
       const onKey = e => {
         if (e.key !== 'Escape') return;
@@ -142,7 +198,21 @@ function wireStackMove(el, popup, same) {
         if (was) showToast('📤 引き出しを取り消しました');
       };
       const onUp = e => {
-        const was = dragging, moving = list;
+        const was = dragging, moving = list, wasReorder = (mode === 'reorder'), target = reorderTarget;
+        if (was && wasReorder) {
+          cleanup();
+          swallowClick();
+          const before = same.filter(p => getLabelNum(p.label) !== null).sort((a, b) => getLabelNum(a.label) - getLabelNum(b.label));
+          const nums = before.map(p => getLabelNum(p.label));
+          const n = stackReorderApply(same, moving, target);
+          if (!n) { showToast('↕ 並びは変わりません'); return; }
+          const after = same.filter(p => getLabelNum(p.label) !== null).sort((a, b) => getLabelNum(a.label) - getLabelNum(b.label));
+          const first = moving[0];
+          showToast(`↕ ${stackMoveDescribe(moving)} を並び替えました（#${first ? getLabelNum(first.label) : '–'} に・番号 ${formatNumRanges(nums)} の中で振り直し・↩で戻せます）`);
+          map.closePopup(popup);
+          openStackList(after[0] || same[0]);   // 続けて並び替えられるよう開き直す
+          return;
+        }
         const under = was ? document.elementFromPoint(e.clientX, e.clientY) : null;   // cleanup 前＝一覧が素通しのうちに判定
         const onPin = was ? stackMovePinAt(e.clientX, e.clientY) : null;
         cleanup();
