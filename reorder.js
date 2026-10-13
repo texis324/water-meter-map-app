@@ -762,10 +762,14 @@ function applyTraceReorder() {
   nearPins.sort((a, b) => a.t - b.t);
 
   const targetIds = new Set(nearPins.map(p => p.pin.id));
-  let minIdx = pins.length;
-  pins.forEach((p, i) => {
-    if (targetIds.has(p.id) && i < minIdx) minIdx = i;
-  });
+  // 挿入位置＝「線に沿った一番手前のピン」が元いた位置（それより前にある線外のピンの数）。
+  // 旧実装は「なぞったピンのうち配列で一番若い位置」に入れていたため、番号の遠いピンを1本
+  // 間に入れる操作（例: 176→163→177）で、かたまり全体が163の位置へ飛んで番号が大きく崩れた
+  // （Tench報告 2026-10-13）。線の始まりの位置に入れれば、「163だけが176と177の間へ移る」になる。
+  const firstPin = nearPins[0].pin;                 // t 昇順の先頭＝線の始まりに一番近いピン
+  const firstOrigIdx = pins.indexOf(firstPin);
+  let minIdx = 0;
+  for (let i = 0; i < firstOrigIdx; i++) if (!targetIds.has(pins[i].id)) minIdx++;
 
   const remaining = pins.filter(p => !targetIds.has(p.id));
   const reordered = nearPins.map(p => p.pin);
