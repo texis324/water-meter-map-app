@@ -842,8 +842,7 @@ body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }
 /* 🏁 始点(1番)・ゴール(最後の番号)の目印（core.js createMarker・「始点・ゴール強調」ON時）
    控えめ版（2026-10-13 本人「ちょっと目立ちすぎ」→ 脈動を止め、拡大を1.2倍・光を弱く・ラベルを小さく） */
 .pin-icon.pin-start, .pin-icon.pin-goal {
-  transform: scale(1.2);
-  border-color: #fff;
+  border-color: #fff;     /* 大きさは他のピンと同じ（本人「大きさ普通でいいや」2026-10-13） */
   z-index: 3;
 }
 .pin-icon.pin-start { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2E7D32; }
