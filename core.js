@@ -865,7 +865,9 @@ function openStackList(pin) {
     }).join('') + `</div>` +
     `<div class="stack-foot">行タップ=詳細編集／行ドラッグ: 一覧の中=並び替え・地図へ=引き出し</div></div>`;
   if (markers[pin.id]) markers[pin.id].closeTooltip();
-  const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true })
+  // 上の検索ボックスと下のツールバーに隠れない位置まで、地図を自動で動かして収める（Tench要望 2026-10-13「検索窓と被らないように」）
+  const popup = L.popup({ maxWidth: 360, minWidth: 250, className: 'stack-popup', autoPan: true,
+      autoPanPaddingTopLeft: L.point(12, 78), autoPanPaddingBottomRight: L.point(12, 118) })
     .setLatLng([pin.lat, pin.lng]).setContent(html).openOn(map);
   const el = popup.getElement();
   if (!el) return;
