@@ -69,12 +69,13 @@
     <h3 id="modal-title">ピン情報</h3>
     <input type="text" id="pin-label" placeholder="ラベル（顧客名・番号など）">
     <textarea id="pin-memo" placeholder="メモ（メーター位置の特徴など）"></textarea>
-    <div id="color-section" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+    <div id="color-section" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <strong style="font-size:13px;">🎨 ピン色</strong>
-      <div id="color-presets" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div id="color-presets" style="display:flex;gap:8px;flex-wrap:wrap;flex:1 1 100%;"></div>
       <input type="color" id="pin-color" value="#1976D2" style="width:30px;height:30px;border:none;border-radius:4px;cursor:pointer;padding:0;">
       <button onclick="clearPinColor()" style="padding:2px 8px;border:none;border-radius:4px;background:#eee;color:#666;font-size:11px;cursor:pointer;">リセット</button>
     </div>
+    <button id="btn-pin-confirm" onclick="confirmPinPosition()" title="色を緑（位置確定）にして、保存して閉じる" style="width:100%;margin-top:8px;padding:11px;border:none;border-radius:8px;background:#4CAF50;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;">✅ 位置確定（緑）にして閉じる</button>
     <div id="group-section" style="margin-top:8px;border-top:1px solid #ddd;padding-top:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <strong style="font-size:13px;">📦 グループ（団地等）</strong>

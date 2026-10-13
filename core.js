@@ -801,13 +801,23 @@ function renderColorPresets(activeColor) {
   container.innerHTML = '';
   pinColorPresets.forEach(c => {
     const dot = document.createElement('div');
-    dot.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${c === activeColor ? '#333' : 'transparent'};box-shadow:0 1px 3px rgba(0,0,0,0.3);`;
+    // 押しやすいよう大きめ（Tench要望 2026-10-13「色の選択が小さくて押しにくい」22px→38px）
+    const on = c.toLowerCase() === (activeColor || pinColorPresets[0]).toLowerCase();
+    dot.style.cssText = `width:38px;height:38px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${on ? '#222' : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,0.45)${on ? ',0 0 0 2px #FFEB3B' : ''};transition:transform .08s;${on ? 'transform:scale(1.12);' : ''}`;
+    const nm = (c.toLowerCase() !== pinColorPresets[0].toLowerCase() && window.getLegendLabel) ? window.getLegendLabel(c.toLowerCase()) : '';
+    dot.title = c.toLowerCase() === pinColorPresets[0].toLowerCase() ? '色なし（既定の青）' : (nm ? `${nm}（${c}）` : c);
     dot.onclick = () => {
       document.getElementById('pin-color').value = c;
       renderColorPresets(c);
     };
     container.appendChild(dot);
   });
+}
+
+// ✅ ワンタップで「位置確定（緑）」にして保存して閉じる（中須の位置確定作業用・Tench決定 2026-10-13「緑＝位置確定」）
+function confirmPinPosition() {
+  document.getElementById('pin-color').value = '#4caf50';
+  savePin();
 }
 
 function clearPinColor() {

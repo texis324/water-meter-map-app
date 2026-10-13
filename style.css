@@ -135,6 +135,8 @@ body.dark .menu-slider { color: #aaa; }
   padding: 20px;
   width: 90%;
   max-width: 360px;
+  max-height: 94vh;        /* 画面が低くても保存ボタンまで届くよう、はみ出す分は中でスクロール */
+  overflow-y: auto;
 }
 .modal h3 { margin-bottom: 12px; font-size: 18px; }
 .modal input, .modal textarea {
@@ -486,9 +488,9 @@ body.dark .stack-txt { color: #ddd; }
 #bulk-color-swatches { display: inline-flex; gap: 5px; vertical-align: middle; }
 .bulk-swatch, .stack-swatch {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
   border: 2px solid rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
-  color: #fff; font-size: 12px; font-weight: bold; line-height: 1;
+  color: #fff; font-size: 15px; font-weight: bold; line-height: 1;
 }
 .bulk-swatch.active { box-shadow: 0 0 0 3px #FFEB3B, 0 0 0 4px rgba(0,0,0,0.5); transform: scale(1.15); }
 .stack-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 6px 0 2px; margin-top: 4px; border-top: 1px solid #ddd; }
