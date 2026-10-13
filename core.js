@@ -794,7 +794,10 @@ function createMarker(pin) {
 
 // --- モーダル ---
 // カラープリセット
-const pinColorPresets = ['#1976D2','#E65100','#4CAF50','#9C27B0','#f44336','#FF9800','#00BCD4','#795548','#607D8B','#E91E63'];
+// 色の候補は、実際に意味を決めて使っている6色だけ（Tench要望 2026-10-13「色の数を減らしていい・3色ぐらいしか使ってない」）。
+// 先頭=色なし(既定の青)。ほかの色が要るときはモーダルの色ピッカー(■)で自由に選べる。既にその色のピンはそのまま表示される。
+// 緑=位置確定／紫=集合住宅／赤=要位置確認／橙=車下になりやすい／ピンク=先取り
+const pinColorPresets = ['#1976D2','#4CAF50','#9C27B0','#f44336','#FF9800','#E91E63'];
 
 function renderColorPresets(activeColor) {
   const container = document.getElementById('color-presets');
