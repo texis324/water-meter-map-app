@@ -281,6 +281,10 @@
 <div class="modal-overlay" id="place-modal">
   <div class="modal" style="max-width:340px;">
     <h3 style="margin-bottom:8px;">📌 ピンをここに置く</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button type="button" onclick="placeNoteHere('駐車')" title="この場所に「駐車」の目印を置く" style="flex:1;padding:12px 6px;border:none;border-radius:8px;background:#455A64;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">🅿 ここに駐車</button>
+      <button type="button" onclick="placeNoteHere('休憩')" title="この場所に「休憩」の目印を置く" style="flex:1;padding:12px 6px;border:none;border-radius:8px;background:#6D4C41;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;">☕ ここに休憩</button>
+    </div>
     <div style="display:flex;gap:6px;align-items:center;">
       <input type="number" id="place-num" min="1" value="1" style="flex:1;min-width:0;font-size:18px;text-align:center;padding:8px;" onkeydown="if(event.key==='Enter'){executeQuickPlace();event.preventDefault();}">
       <span style="font-size:14px;color:#666;">〜</span>

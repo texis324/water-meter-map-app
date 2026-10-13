@@ -338,6 +338,20 @@ function openQuickPlace(latlng) {
   setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
+// 🅿 駐車／☕ 休憩 などの「目印」を、地図の右クリック→モーダルのボタンで1タップで置く（Tench要望 2026-10-13「めんどいから右クリックで駐車とか休憩とかピンを置けるように」）
+// 実体は ✏️ルート線 の「📍目印」と同じ（savedTraces の kind:'marker'）。順路・番号・提出には無関係。
+function placeNoteHere(label) {
+  const ll = quickPlaceLatLng;
+  if (!ll) return;
+  closeQuickPlace();
+  pushUndo();
+  const icon = (typeof noteIconFor === 'function') ? noteIconFor(label) : '📌';
+  savedTraces.push({ kind: 'marker', points: [{ lat: ll.lat, lng: ll.lng }], label: label, icon: icon, color: '#212121' });
+  if (typeof redrawSavedTraces === 'function') redrawSavedTraces();
+  saveToStorage();
+  showToast(`${icon} 「${label}」を置きました（↩で戻せます・書き込み一覧で削除）`);
+}
+
 // --- 📌 名前・住所でピンを呼び出す（Tench要望 2026-09-17「番号だけでなく名前や苗字からも呼び出したい」）---
 // 照合はラベル(番号を除く)＋メモ。NFKC正規化＋空白除去＋ひらがな→カタカナで、
 // 「中川清」「なかがわ」のような打ち方でも「中川　清」「ナカガワ」に当たるようにする。
