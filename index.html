@@ -58,7 +58,7 @@
   <button onclick="openLegend()" title="ピンの色に意味を登録して凡例表示">🏷 凡例</button>
   <button onclick="checkMissingNumbers()">🔍 欠番チェック</button>
   <button onclick="detectDuplicateNumbers()" title="同じ番号を持つピンが複数ないか検出">🔁 重複チェック</button>
-  <button id="btn-endpoints" class="active" onclick="toggleEndpoints()">🟢 始点ハイライト</button>
+  <button id="btn-endpoints" class="active" onclick="toggleEndpoints()" title="1番に🏁START、最後の番号に🏁GOALの旗と光る縁取りを付ける">🏁 始点・ゴール強調</button>
   <div class="menu-slider" title="ピンサイズ"><span>📏 ピンサイズ</span><input type="range" id="pin-size-slider" min="14" max="40" value="20" oninput="changePinSize(this.value)"></div>
   <div class="menu-slider" title="ルート線の濃さ"><span>🖊️ 線の濃さ</span><input type="range" id="trace-opacity-slider" min="10" max="100" value="90" oninput="changeTraceOpacity(this.value)"></div>
 </div>

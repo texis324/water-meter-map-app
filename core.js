@@ -563,11 +563,17 @@ function createMarker(pin) {
                         : pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
   // 🏁 始点(1番)は「始点・終点ハイライト」ON のとき、色や重なりに関係なく目立たせる（Tench要望 2026-10-13）
   const isStart = highlightEndpoints && displayNum === 1;
+  // 🏁 ゴール（最後の番号）。1本しか無い時は始点を優先。番号つきラベルのピンだけが対象
+  let maxNum = cache ? cache.maxNum : null;
+  if (!cache) pins.forEach(p => { const n = getLabelNum(p.label); if (n !== null && (maxNum === null || n > maxNum)) maxNum = n; });
+  const myNum = getLabelNum(pin.label);
+  const isGoal = highlightEndpoints && !isStart && maxNum !== null && maxNum > 1 && myNum !== null && myNum === maxNum;
   const classes = [
     'pin-icon',
     pin.memo ? 'has-memo' : '',
     (inGroup || hasOldGroup) ? 'has-group' : '',
-    isStart ? 'pin-start' : ''
+    isStart ? 'pin-start' : '',
+    isGoal ? 'pin-goal' : ''
   ].filter(Boolean).join(' ');
   // 縮小グループの代表ピン: バッジに件数表示
   // 同一座標の重複件数バッジ
@@ -586,6 +592,8 @@ function createMarker(pin) {
   if (!pin.color && highlightEndpoints) {
     if (displayNum === 1) {
       autoColor = 'background:#4CAF50 !important;';
+    } else if (isGoal) {
+      autoColor = 'background:#263238 !important;';   // ゴールは濃い青灰（赤=要位置確認と紛れないように）
     }
   }
   const colorStyle = pin.color ? `background:${pin.color} !important;` : autoColor;
@@ -599,7 +607,7 @@ function createMarker(pin) {
   const marker = L.marker([pin.lat, pin.lng], {
     icon: icon,
     draggable: true,
-    zIndexOffset: isStart ? 5000 : 0     // 始点は団子や他のピンの上に出す
+    zIndexOffset: isStart ? 5000 : (isGoal ? 4500 : 0)     // 始点・ゴールは団子や他のピンの上に出す
   }).addTo(map);
 
   // ホバーでラベル表示（ツールチップ）
@@ -1067,7 +1075,10 @@ function buildMarkerCache() {
       g.pinIds.slice(1).forEach(id => hiddenIds.add(id));
     }
   });
-  return { coordPins, inGroupIds, collapsedRepMap, hiddenIds };
+  // 最終番号（ゴール表示用）。番号つきラベルの最大値。無ければ null
+  let maxNum = null;
+  pins.forEach(p => { const n = getLabelNum(p.label); if (n !== null && (maxNum === null || n > maxNum)) maxNum = n; });
+  return { coordPins, inGroupIds, collapsedRepMap, hiddenIds, maxNum };
 }
 
 function refreshAllMarkers() {
