@@ -561,10 +561,13 @@ function createMarker(pin) {
   const hasOldGroup = pin.group && pin.group.length;
   const sameLoc = cache ? (cache.coordPins.get(pin.lat + ',' + pin.lng) || [pin])
                         : pins.filter(p => p.lat === pin.lat && p.lng === pin.lng);
+  // 🏁 始点(1番)は「始点・終点ハイライト」ON のとき、色や重なりに関係なく目立たせる（Tench要望 2026-10-13）
+  const isStart = highlightEndpoints && displayNum === 1;
   const classes = [
     'pin-icon',
     pin.memo ? 'has-memo' : '',
-    (inGroup || hasOldGroup) ? 'has-group' : ''
+    (inGroup || hasOldGroup) ? 'has-group' : '',
+    isStart ? 'pin-start' : ''
   ].filter(Boolean).join(' ');
   // 縮小グループの代表ピン: バッジに件数表示
   // 同一座標の重複件数バッジ
@@ -595,7 +598,8 @@ function createMarker(pin) {
 
   const marker = L.marker([pin.lat, pin.lng], {
     icon: icon,
-    draggable: true
+    draggable: true,
+    zIndexOffset: isStart ? 5000 : 0     // 始点は団子や他のピンの上に出す
   }).addTo(map);
 
   // ホバーでラベル表示（ツールチップ）

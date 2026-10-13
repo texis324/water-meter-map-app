@@ -838,3 +838,23 @@ body.dark .submit-table th, body.dark .submit-table td { border-color: #444; }
 .stack-row-dragging { opacity: 0.45; }
 .stack-row.stack-drop-before { box-shadow: 0 -3px 0 0 #5E35B1 inset; }
 .stack-row.stack-drop-after { box-shadow: 0 3px 0 0 #5E35B1 inset; }
+
+/* 🏁 始点(1番)を目立たせる（core.js createMarker・「始点・終点ハイライト」ON時） */
+.pin-icon.pin-start {
+  transform: scale(1.45);
+  border-color: #fff;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #2E7D32, 0 0 16px 8px rgba(67,160,71,0.75);
+  animation: startPulse 1.5s ease-in-out infinite;
+  z-index: 3;
+}
+.pin-icon.pin-start::before {
+  content: '🏁 START';
+  position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%);
+  background: #2E7D32; color: #fff; font: bold 11px sans-serif; white-space: nowrap;
+  padding: 2px 7px; border-radius: 10px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+@keyframes startPulse {
+  0%, 100% { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #2E7D32, 0 0 12px 5px rgba(67,160,71,0.55); }
+  50%      { box-shadow: 0 0 0 3px #fff, 0 0 0 7px #2E7D32, 0 0 26px 14px rgba(67,160,71,0.9); }
+}
